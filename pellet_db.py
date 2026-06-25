@@ -1,10 +1,7 @@
 """
 pellet_db.py — Biomass Pellet Gross Calorific Value (GCV) Database (v5 — Corrected)
-IIT Delhi · Department of Energy Studies
 
-=============================================================================
 CHANGES FROM v4
-=============================================================================
 ONE VALUE CORRECTED:
   Sugarcane Bagasse Pellets: 2200-2600 kcal/kg  →  3800-4200 kcal/kg
 
