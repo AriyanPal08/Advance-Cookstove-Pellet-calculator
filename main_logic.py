@@ -892,43 +892,91 @@ def main() -> None:
             ))
             avg_burn_rate = _prompt_positive_float("Average burning rate (kg/hr)", default=0.80, lo=0.0, hi=5.0)
 
-            # ── v8: Batch cooking time scaling ─────────────────────────────────
-            # Base phase times (from FoodPhases) are per-serving baselines (1 person).
-            # Scale with num_people using sub-linear exponents:
-            #   Boil/simmer: n^0.25 (time to boil ∝ mass, cooking-at-temp ≈ constant)
-            #   Frying: n^0.15 (partially sequential; weak scaling)
-            # Pressure cooker: apply PRESSURE_COOKER_TIME_FACTOR (0.65) to boil+simmer.
-            # [source: 12, food science thermodynamics]
+            # ── v8: UNIFIED TIME SUGGESTION ─────────────────────────────────────
+            # METHOD A — Energy-based estimate: t = Q_demand / Net_Power
+            # METHOD B — Batch-scaled DB times: t = t_base × n^exponent
+            # ────────────────────────────────────────────────────────────────────
             is_pressure = (utensil == "Pressure Cooker")
             pc_factor = PRESSURE_COOKER_TIME_FACTOR if is_pressure else 1.0
 
-            base_fry_min = dish.phases.frying_s / 60.0
-            base_boil_min = dish.phases.boiling_s / 60.0
-            base_simmer_min = dish.phases.simmering_s / 60.0
-
-            # Apply batch scaling exponents:
-            n = max(num_people, 1)
-            suggested_fry    = base_fry_min    * (n ** BATCH_TIME_SCALE_FRY)
-            suggested_boil   = base_boil_min   * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
-            suggested_simmer = base_simmer_min * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
-
-            # Also compute energy-based estimate for comparison/display:
+            # Sensible heat demand (food + water + pot)
             if override_water_kg is not None:
                 q_water_kj = override_water_kg * CP_WATER_KJ_KGK * DELTA_T_K
             else:
                 q_water_kj = dish.q_sensible_water(num_people)
-            q_rough = dish.q_sensible_food(num_people) + q_water_kj + (m_vessel * CP_ALUMINIUM_KJ_KGK * DELTA_T_K)
-            t_energy_est_s = estimate_time_from_energy(
-                q_rough, avg_burn_rate, pellet.conservative_gcv_kj, is_pressure
-            )
+            q_sensible = (dish.q_sensible_food(num_people) + q_water_kj + m_vessel * CP_ALUMINIUM_KJ_KGK * DELTA_T_K)
 
-            total_suggested_min = suggested_fry + suggested_boil + suggested_simmer
+            # Base times from database
+            base_fry_min    = dish.phases.frying_s    / 60.0
+            base_boil_min   = dish.phases.boiling_s   / 60.0
+            base_simmer_min = dish.phases.simmering_s / 60.0
 
-            print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
-            if num_people > 1:
-                print(C.DIM + f"    (base 1-person: {base_fry_min + base_boil_min + base_simmer_min:.1f} min "
-                      f"× batch scaling n^0.25 for {num_people} people)" + C.RESET)
-            print(C.DIM + f"    (energy-based estimate: {t_energy_est_s/60:.1f} min)" + C.RESET)
+            if dish.name == "Plain Water Boiling" or dish.variable_water:
+                # ---------------------------------------------------------
+                # WATER BOILING (100% Energy-Based, No Batch Scaling)
+                # ---------------------------------------------------------
+                # Batch scaling is removed completely because pure water has no solid
+                # food that requires cooking-at-temperature duration (like rice).
+                # To get a realistic time, we must account for continuous power losses
+                # (convection and evaporation) during the heating process.
+                # Formula: Total Time = Total Sensible Energy Required ÷ Net Stove Power Delivery
+                
+                br_avg_kg_s = avg_burn_rate / 3600.0
+                power_in_kw = br_avg_kg_s * pellet.conservative_gcv_kj * STOVE_EFFICIENCY
+                
+                # Estimate continuous losses during heating
+                lid_conv_factor = LID_CONVECTIVE_LOSS_FACTOR if lid == "Lid ON" else 1.0
+                p_loss_kw = UTENSIL_OPTIONS[utensil] * wind_multiplier * lid_conv_factor
+                
+                evap_mult = PRESSURE_COOKER_EVAP_FACTOR if is_pressure else (LID_ON_EVAP_FACTOR if lid == "Lid ON" else 1.0)
+                evap_area_scale = max(1.0, (num_people / 2.0) ** 0.4)
+                p_evap_kw = (EVAP_RATE_BOIL_KG_PER_MIN / 60.0) * evap_mult * evap_area_scale * LATENT_HEAT_VAPORIZATION
+                
+                net_power_kw = power_in_kw - p_loss_kw - p_evap_kw
+                
+                if net_power_kw > 0.1:
+                    total_suggested_min = (q_sensible / net_power_kw) / 60.0
+                else:
+                    total_suggested_min = (q_sensible / power_in_kw) / 60.0 # Fallback
+                
+                if is_pressure:
+                    total_suggested_min *= PRESSURE_COOKER_TIME_FACTOR
+
+                suggested_fry = 0.0
+                suggested_boil = total_suggested_min
+                suggested_simmer = 0.0
+                
+                print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
+                print(C.DIM + f"    (100% pure physics estimate; net heating power = {net_power_kw:.2f} kW)" + C.RESET)
+            else:
+                # ---------------------------------------------------------
+                # FOOD DISHES (70% Energy + 30% Batch Scaling)
+                # ---------------------------------------------------------
+                t_energy_min = estimate_time_from_energy(
+                    q_sensible, avg_burn_rate, pellet.conservative_gcv_kj, is_pressure
+                ) / 60.0
+
+                n = max(num_people, 1)
+                batch_fry    = base_fry_min    * (n ** BATCH_TIME_SCALE_FRY)
+                batch_boil   = base_boil_min   * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
+                batch_simmer = base_simmer_min * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
+                t_batch_min  = batch_fry + batch_boil + batch_simmer
+
+                blend_w = 0.30
+                total_suggested_min = (1.0 - blend_w) * t_energy_min + blend_w * t_batch_min
+
+                raw_total_min = base_fry_min + base_boil_min + base_simmer_min
+                if raw_total_min > 0:
+                    suggested_fry    = total_suggested_min * (base_fry_min    / raw_total_min)
+                    suggested_boil   = total_suggested_min * (base_boil_min   / raw_total_min)
+                    suggested_simmer = total_suggested_min * (base_simmer_min / raw_total_min)
+                else:
+                    suggested_fry = suggested_boil = suggested_simmer = 0.0
+
+                print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
+                print(C.DIM + f"    energy estimate: {t_energy_min:.1f} min  |  "
+                      f"batch-scaled: {t_batch_min:.1f} min  |  "
+                      f"blend: {(1-blend_w)*100:.0f}%/{blend_w*100:.0f}%" + C.RESET)
 
             t_fry_s = _prompt_phase_time("FRYING / SAUTÉING", suggested_fry) if base_fry_min > 0 else 0.0
             t_boil_s = _prompt_phase_time("BOILING / REDUCING", suggested_boil) if base_boil_min > 0 else 0.0
