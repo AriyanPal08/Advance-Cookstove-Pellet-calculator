@@ -1,0 +1,39 @@
+
+---
+
+### 3. Create `.gitignore`
+
+Create a file named `.gitignore` and add this:
+
+```gitignore
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+stove_calculations_log.csv
+
+# IDE
+.vscode/
+.idea/
