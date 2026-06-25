@@ -1,6 +1,5 @@
 """
 main_logic.py — Biomass Stove Pellet Mass Engine v8
-IIT Delhi · Department of Energy Studies
 
 =============================================================================
 CHANGE LOG  v7 → v8
