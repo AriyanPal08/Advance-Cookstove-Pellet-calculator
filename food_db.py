@@ -1,6 +1,6 @@
 """
 food_db.py — Biomass Cookstove Food & Dish Database (v8)
-IIT Delhi · Department of Energy Studies
+
 
 =============================================================================
 CHANGE LOG  v7 → v8
