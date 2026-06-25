@@ -69,32 +69,22 @@ DELTA_T_K:       float = 75.0   # 100°C − 25°C ambient
 
 
 @dataclass(frozen=True)
-class FoodPhases:
+class CookingStage:
     """
-    Baseline cooking-phase durations (seconds) for ONE adult serving.
-    Source: CSIR-CFTRI (2020) kinetic profiles. [source: 3]
+    A specific stage of cooking a dish.
+    stage_type can be 'heating', 'kinetic', or 'frying'.
     """
-    frying_s:    int = 0
-    boiling_s:   int = 0
-    simmering_s: int = 0
+    name: str
+    stage_type: str
+    duration_s: int = 0
 
     def __post_init__(self) -> None:
-        for attr in ("frying_s", "boiling_s", "simmering_s"):
-            val = getattr(self, attr)
-            if not isinstance(val, int) or val < 0:
-                raise ValueError(
-                    f"FoodPhases.{attr} must be a non-negative int, got {val!r}"
-                )
-        if self.total_s == 0:
-            raise ValueError("FoodPhases: at least one phase must be > 0 seconds.")
-
-    @property
-    def total_s(self) -> int:
-        return self.frying_s + self.boiling_s + self.simmering_s
-
-    @property
-    def total_min(self) -> float:
-        return self.total_s / 60.0
+        if self.stage_type not in ("heating", "kinetic", "frying"):
+            raise ValueError(f"Unknown stage_type: {self.stage_type!r}")
+        if self.duration_s < 0:
+            raise ValueError(f"CookingStage.{self.name} duration_s must be >= 0")
+        if self.stage_type in ("kinetic", "frying") and self.duration_s <= 0:
+            raise ValueError(f"Stage '{self.name}' ({self.stage_type}) requires a positive duration_s")
 
 
 @dataclass(frozen=True)
@@ -114,8 +104,8 @@ class DishProfile:
     cp_food_kj_kgk
         Mass-weighted composite Cp of raw food at 60°C via Choi & Okos (1986)
         using ICMR-NIN 2017 compositions. Units: kJ/(kg·K). [sources: 1, 2]
-    phases
-        Baseline phase durations for 1 person. [source: 3]
+    stages
+        Hierarchical cooking sequence for this dish.
     category
         Dish category string (for logging only).
     variable_water
@@ -128,7 +118,7 @@ class DishProfile:
     food_mass_per_serving_kg:   float
     added_water_per_serving_kg: float
     cp_food_kj_kgk:             float
-    phases:                     FoodPhases
+    stages:                     tuple[CookingStage, ...]
     category:                   str
     variable_water:             bool  = False
     cp_source_note:             str   = ""
@@ -152,11 +142,11 @@ class DishProfile:
                 f"[{self.name}] cp_food_kj_kgk must be > 0, "
                 f"got {self.cp_food_kj_kgk}"
             )
-        if not isinstance(self.phases, FoodPhases):
-            raise TypeError(
-                f"[{self.name}] phases must be a FoodPhases instance, "
-                f"got {type(self.phases).__name__}"
-            )
+        if not self.stages:
+            raise ValueError(f"[{self.name}] must have at least one CookingStage.")
+        for stage in self.stages:
+            if not isinstance(stage, CookingStage):
+                raise TypeError(f"[{self.name}] expected CookingStage, got {type(stage).__name__}")
 
     # ── convenience ──────────────────────────────────────────────────────────
 
@@ -206,7 +196,11 @@ FOOD_DB: dict[str, DishProfile] = {
         cp_food_kj_kgk=2.04,
         # CSIR-CFTRI: open-pot milled rice = 18–22 min total. [source: 3]
         # 5 min rapid boil + 15 min absorption simmer = 20 min total.
-        phases=FoodPhases(boiling_s=300, simmering_s=900),
+        stages=(
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Hydration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Starch Gelatinization", stage_type="kinetic", duration_s=600),
+        ),
         category="Staple Grain",
         cp_source_note=(
             "Choi-Okos(1986)@60°C; ICMR-NIN IFCT2017 raw milled rice: "
@@ -234,7 +228,13 @@ FOOD_DB: dict[str, DishProfile] = {
         added_water_per_serving_kg=0.24,
         cp_food_kj_kgk=1.95,
         # CSIR-CFTRI: split moong (unsoaked): 3 min tadka + 20 min boil + 7 min simmer. [source: 3]
-        phases=FoodPhases(frying_s=180, boiling_s=1200, simmering_s=420),
+        stages=(
+            CookingStage(name="Frying (Tadka)", stage_type="frying", duration_s=180),
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Heat Penetration", stage_type="kinetic", duration_s=420),
+            CookingStage(name="Hydration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Softening", stage_type="kinetic", duration_s=900),
+        ),
         category="Lentil Dish",
         cp_source_note=(
             "Choi-Okos(1986)@60°C; ICMR-NIN IFCT2017 split moong dal: "
@@ -275,7 +275,13 @@ FOOD_DB: dict[str, DishProfile] = {
         food_mass_per_serving_kg=0.22,   # 120g chicken + 60g onion + 40g tomato
         added_water_per_serving_kg=0.35,
         cp_food_kj_kgk=3.74,
-        phases=FoodPhases(frying_s=480, boiling_s=900, simmering_s=1200),
+        stages=(
+            CookingStage(name="Frying / Sautéing", stage_type="frying", duration_s=480),
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Heat Penetration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Protein Denaturation", stage_type="kinetic", duration_s=600),
+            CookingStage(name="Collagen Conversion", stage_type="kinetic", duration_s=1200),
+        ),
         category="Non-Veg Curry",
         cp_source_note=(
             "v7: Mass-weighted Choi-Okos(1986)@60°C. "
@@ -307,7 +313,9 @@ FOOD_DB: dict[str, DishProfile] = {
         added_water_per_serving_kg=0.036,
         cp_food_kj_kgk=2.66,
         # ~2 min per roti; 2.5 rotis per person = ~5–6 min frying total.
-        phases=FoodPhases(frying_s=360, boiling_s=0, simmering_s=0),
+        stages=(
+            CookingStage(name="Dry Cooking (Tawa)", stage_type="frying", duration_s=360),
+        ),
         category="Staple Bread",
         cp_source_note=(
             "Dough Cp: Choi-Okos(1986)@60°C. Dry atta (ICMR-NIN IFCT2017: "
@@ -333,7 +341,10 @@ FOOD_DB: dict[str, DishProfile] = {
         # Xp≈0.05, Xf≈0.06, Xc≈0.87, Xa≈0.02 → Cp ≈ 2.86 kJ/kg·K
         # Dominant energy load is 0.20 kg water.
         cp_food_kj_kgk=2.86,
-        phases=FoodPhases(boiling_s=180, simmering_s=120),
+        stages=(
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Extraction", stage_type="kinetic", duration_s=300),
+        ),
         category="Beverage",
         cp_source_note=(
             "Solid fraction (milk solids + sugar proxy): "
@@ -356,7 +367,13 @@ FOOD_DB: dict[str, DishProfile] = {
         # Composite Cp for toor dal + tomato + tamarind + vegetables:
         # High water content ingredients → Cp ≈ 3.34 kJ/kg·K (ICMR-NIN composite).
         cp_food_kj_kgk=3.34,
-        phases=FoodPhases(frying_s=240, boiling_s=720, simmering_s=600),
+        stages=(
+            CookingStage(name="Frying / Sautéing", stage_type="frying", duration_s=240),
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Heat Penetration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Hydration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Softening", stage_type="kinetic", duration_s=720),
+        ),
         category="Lentil-Vegetable Stew",
         cp_source_note=(
             "Composite estimate: toor dal (Cp≈1.95) + vegetables (Cp≈3.7–3.9). "
@@ -382,7 +399,10 @@ FOOD_DB: dict[str, DishProfile] = {
         # Cp ≈ 0.80×1.6665 + 0.12×2.0807 + 0.02×2.0726 + 0.06×1.2060
         #    = 1.333 + 0.250 + 0.041 + 0.072 = 1.70 kJ/kg·K
         cp_food_kj_kgk=1.70,
-        phases=FoodPhases(boiling_s=180, simmering_s=120),
+        stages=(
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Extraction", stage_type="kinetic", duration_s=300),
+        ),
         category="Beverage",
         cp_source_note=(
             "Coffee powder proxy via Choi-Okos: "
@@ -402,7 +422,12 @@ FOOD_DB: dict[str, DishProfile] = {
         # Composite of potato, carrot, beans, peas (ICMR-NIN IFCT2017):
         # High moisture vegetables → Cp ≈ 3.76 kJ/kg·K
         cp_food_kj_kgk=3.76,
-        phases=FoodPhases(frying_s=360, boiling_s=480, simmering_s=720),
+        stages=(
+            CookingStage(name="Frying / Sautéing", stage_type="frying", duration_s=360),
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Heat Penetration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Softening", stage_type="kinetic", duration_s=900),
+        ),
         category="Vegetable Curry",
         cp_source_note=(
             "Composite: potato (Cp≈3.67), carrot (Cp≈3.92), beans (Cp≈3.90), "
@@ -427,7 +452,12 @@ FOOD_DB: dict[str, DishProfile] = {
         # With onion/tomato base (≈3.85 avg) at 40/150 = 0.267 fraction:
         # Cp_composite ≈ (110/150)×3.60 + (40/150)×3.85 = 2.640 + 1.027 = 3.67 kJ/kg·K
         cp_food_kj_kgk=3.67,
-        phases=FoodPhases(frying_s=300, boiling_s=480, simmering_s=720),
+        stages=(
+            CookingStage(name="Frying / Sautéing", stage_type="frying", duration_s=300),
+            CookingStage(name="Heating", stage_type="heating"),
+            CookingStage(name="Heat Penetration", stage_type="kinetic", duration_s=300),
+            CookingStage(name="Protein Denaturation", stage_type="kinetic", duration_s=900),
+        ),
         category="Non-Veg Curry",
         cp_source_note=(
             "Whole egg raw: ICMR-NIN IFCT2017 Xw=0.733,Xp=0.134,Xf=0.106 → Cp=3.60. "
@@ -451,7 +481,9 @@ FOOD_DB: dict[str, DishProfile] = {
         food_mass_per_serving_kg=0.001,    # trace solids only; overridden by water
         added_water_per_serving_kg=0.0,    # placeholder; main_logic prompts user
         cp_food_kj_kgk=4.171,             # trace solids approximated as water
-        phases=FoodPhases(boiling_s=480, simmering_s=0),
+        stages=(
+            CookingStage(name="Heating", stage_type="heating"),
+        ),
         category="Utility / WBT Reference",
         variable_water=True,               # ← v7: main_logic will prompt for litres
         cp_source_note=(

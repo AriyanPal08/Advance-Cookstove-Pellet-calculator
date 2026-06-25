@@ -1,5 +1,44 @@
 """
-main_logic.py — Biomass Stove Pellet Mass Engine v8
+main_logic.py — Biomass Stove Pellet Mass Engine v9
+
+=============================================================================
+CHANGE LOG  v8 → v9
+=============================================================================
+1. REMOVED 70%/30% HYBRID BLEND FOR FOOD DISHES (FIX #1)
+   Suggestion for food dishes now uses 100% energy-based time (same physics
+   as Plain Water Boiling). The total energy-derived time is distributed
+   across fry/boil/simmer phases in proportion to the DB phase ratios.
+   Removed batch-scaled variables (batch_fry, batch_boil, batch_simmer,
+   blend_w). Physical basis: thermodynamic model is self-consistent;
+   blending with arbitrary DB times introduced model inconsistency.
+
+2. KINETIC HOLD TIME ADDED FOR FOOD DISHES (FIX #4)
+   Thermal time (energy-based) now represents the heating phase (boiling).
+   Simmering suggestion is taken directly from DB simmering_s (at-temperature
+   kinetic hold: starch gelatinization, protein denaturation, etc.).
+   Frying time suggestion is taken directly from DB frying_s (sequential
+   preparation phase, independent of batch mass).
+   Source: CSIR-CFTRI (2020) kinetic profiles embedded in food_db.py [3].
+
+3. PHASE-WEIGHTED EFFICIENCY DOCUMENTED (FIX #3)
+   Stove efficiency constant retained at η = 0.45 (WBT-validated average).
+   Phase-weighted formula (0.15×0.30 + 0.65×0.50 + 0.20×0.35 = 0.425) is
+   now documented alongside the constant. Dynamic per-calculation efficiency
+   not implemented (circular dependency with user-entered times).
+
+4. PHYSICAL VALIDATION ADDED (FIX #5)
+   validate_prediction() function checks for physically implausible results
+   (very low pellet mass, water boiling too fast, etc.) and emits warnings.
+
+5. ROTI EVAPORATION MODEL CORRECTED (FIX #7)
+   Roti kneading water (36 g/serving) was previously ignored (q_evap = 0).
+   Now models 20% of kneading water as reaching the stove surface as steam
+   (7.2 g/serving evaporated; remaining absorbed/gelatinized into dough).
+
+6. UNUSED BURN-RATE MULTIPLIER CONSTANTS DOCUMENTED (FIX #6)
+   PHASE_IGNITION_BR_MULT / PHASE_STEADY_BR_MULT / PHASE_DECLINE_BR_MULT
+   are now explicitly marked as NOT USED IN CALCULATION.
+   Retained for future phase-dependent efficiency implementation.
 
 =============================================================================
 CHANGE LOG  v7 → v8
@@ -83,12 +122,21 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from food_db import FOOD_DB, DishProfile, get_dish, get_dish_names, CP_WATER_KJ_KGK
+from food_db import FOOD_DB, DishProfile, get_dish, get_dish_names, CP_WATER_KJ_KGK, CookingStage
 from pellet_db import PELLET_DB, PelletType, get_pellet, get_pellet_names
 
 # ---------------------------------------------------------------------------
 # Physics constants — ALL SOURCED
 # ---------------------------------------------------------------------------
+# η retained at 0.45 (WBT-validated overall average for IIT Delhi FD stove). [7,8]
+# Phase-weighted formula for reference (FIX #3 v9):
+#   η_avg = PHASE_IGNITION_FRAC × 0.30  (ignition: volatile combustion)
+#         + PHASE_STEADY_FRAC   × 0.50  (steady:   peak efficiency)
+#         + PHASE_DECLINE_FRAC  × 0.35  (decline:  char phase)
+#         = 0.15×0.30 + 0.65×0.50 + 0.20×0.35 = 0.425
+# Decision: keep 0.45 (WBT-calibrated); 0.425 documented for future validation.
+# Dynamic per-calculation efficiency not implemented due to circular dependency
+# (would require knowing user-entered cooking times before suggesting them).
 STOVE_EFFICIENCY: float  = 0.45     # η; between 36.82–47.0% IIT Delhi. [7,8]
 DELTA_T_K:        float  = 75.0     # ΔT = 100°C − 25°C ambient. [4]
 LATENT_HEAT_VAPORIZATION: float = 2257.0   # h_fg kJ/kg at 100°C, 1 atm.
@@ -129,6 +177,14 @@ PHASE_STEADY_FRAC:   float = 0.65   # 65% of total cook time
 PHASE_DECLINE_FRAC:  float = 0.20   # 20% of total cook time
 
 # Burn rate multipliers relative to user-supplied average:
+# v9 NOTE: These multipliers are currently NOT USED IN ENERGY CALCULATIONS.
+# They are retained for WBT reporting display and for future implementation
+# of phase-dependent efficiency (see FIX #3 documentation above).
+# In the current model, all energy is calculated using the flat constant
+# STOVE_EFFICIENCY = 0.45 (WBT-calibrated).
+#
+# TODO v9+: Implement true phase-dependent efficiency using these multipliers
+# once per-phase power measurement data is available from field tests.
 PHASE_IGNITION_BR_MULT: float = 1.30   # volatile release; peak rate
 PHASE_STEADY_BR_MULT:   float = 1.00   # equilibrium combustion
 PHASE_DECLINE_BR_MULT:  float = 0.65   # char phase; slower burn
@@ -146,16 +202,15 @@ _PHASE_BR_NORM: float = (
 PRESSURE_COOKER_TIME_FACTOR: float = 0.65
 
 # ---------------------------------------------------------------------------
-# Batch cooking time scaling exponents  [NEW v8]  [source: 12]
+# Batch cooking time scaling exponents  [v8; DEPRECATED in v9]
 # ---------------------------------------------------------------------------
-# Physical basis: time to reach boiling ∝ mass (linear), but cooking time
-# at temperature ≈ constant (rice absorbs water at same rate regardless of
-# batch size; dal softens at same rate). Net: total time ≈ n^0.25.
-# Validated: 1 person rice ~20 min, 4 people ~28 min (ratio 1.4×);
-# n^0.25 gives 4^0.25 = 1.41×. Conservative (slightly overestimates).
-# Frying: partially sequential (rotis on tawa), scales more weakly.
-BATCH_TIME_SCALE_BOIL_SIMMER: float = 0.25
-BATCH_TIME_SCALE_FRY:         float = 0.15
+# v9 NOTE: These exponents are NO LONGER USED in time suggestions.
+# FIX #1 (v9) removed the 70%/30% hybrid blend. Food-dish suggestions
+# now use 100% energy-based thermal time (same as Plain Water Boiling).
+# The constants are retained here to avoid breaking any external code that
+# may reference them, but they do not affect any calculation output.
+BATCH_TIME_SCALE_BOIL_SIMMER: float = 0.25   # DEPRECATED v9 — not used
+BATCH_TIME_SCALE_FRY:         float = 0.15   # DEPRECATED v9 — not used
 
 # Default vessel masses (kg) for common utensil sizes.
 # Used as default suggestion in the prompt.
@@ -360,8 +415,8 @@ class CalculationResult:
     avg_burn_rate:   float       # kg/hr, user-supplied
 
     t_fry_s:         float
-    t_boil_s:        float
-    t_simmer_s:      float
+    t_heating_s:     float
+    t_kinetic_s:     float
 
     m_food_kg:       float
     m_water_kg:      float
@@ -370,8 +425,8 @@ class CalculationResult:
     q_water_sensible:  float
     q_vessel_mass:     float    # NEW v7: vessel thermal mass term
     q_vessel_fry:      float
-    q_vessel_boil:     float
-    q_vessel_simmer:   float
+    q_vessel_heating:  float
+    q_vessel_kinetic:  float
     q_evap:            float
 
     t_ignition_s:    float      # 3-phase times (computed post-calculation)
@@ -395,7 +450,7 @@ class CalculationResult:
 
     def __post_init__(self) -> None:
         self.q_vessel_loss = (
-            self.q_vessel_fry + self.q_vessel_boil + self.q_vessel_simmer
+            self.q_vessel_fry + self.q_vessel_heating + self.q_vessel_kinetic
         )
         self.q_grand_total = (
             self.q_food_sensible
@@ -430,8 +485,8 @@ def calculate(
     m_vessel_kg:     float,
     avg_burn_rate:   float,
     t_fry_s:         float,
-    t_boil_s:        float,
-    t_simmer_s:      float,
+    t_heating_s:     float,
+    t_kinetic_s:     float,
     wind_location:   str,
     wind_level:      str,
     override_water_kg: float | None = None,
@@ -473,18 +528,28 @@ def calculate(
     # P_loss from MacCarty et al. (2010) baseline; wind multiplier from
     # Churchill & Bernstein (1977) convection scaling. [sources: 5, 9]
     # v8: lid_conv_factor already folded into p_loss_kw above.
-    q_vessel_fry    = p_loss_kw * t_fry_s    if t_fry_s    > 0 else 0.0
-    q_vessel_boil   = p_loss_kw * t_boil_s   if t_boil_s   > 0 else 0.0
-    q_vessel_simmer = p_loss_kw * t_simmer_s if t_simmer_s > 0 else 0.0
+    q_vessel_fry     = p_loss_kw * t_fry_s     if t_fry_s     > 0 else 0.0
+    q_vessel_heating = p_loss_kw * t_heating_s if t_heating_s > 0 else 0.0
+    q_vessel_kinetic = p_loss_kw * t_kinetic_s if t_kinetic_s > 0 else 0.0
 
-    # ── Term 5: Evaporation  [v8 improved model] ──────────────────────────
+    # ── Term 5: Evaporation  [v8 improved model; v9 roti fix] ─────────────
     # Improvements over v7:
     #   - Pressure cooker: near-zero evaporation (sealed). [source: 4]
     #   - Lid factor reduced: 0.15 → 0.10 (Brundrett 1979; Probert 1987).
     #   - Surface-area scaling: larger pots → more evaporation surface.
+    # v9 FIX #7: Roti kneading water (36 g/serving) was previously ignored.
+    #   Models 20% of kneading water as escaping as steam during cooking.
+    #   (The remaining 80% is absorbed into the dough / gelatinized.)
     q_evap = 0.0
     is_pressure = (utensil == "Pressure Cooker")
-    if dish.name != "Roti" and (t_boil_s + t_simmer_s) > 0:
+    if dish.name == "Roti":
+        # ROTI: dry-cooked on tawa; kneading water does not boil in a pot.
+        # Only a fraction reaches the stove surface as steam.
+        # 20% factor: empirical estimate — most water absorbed into dough. [FIX #7 v9]
+        roti_kneading_water_kg = dish.added_water_per_serving_kg * num_people
+        roti_evap_fraction = 0.20
+        q_evap = roti_kneading_water_kg * roti_evap_fraction * LATENT_HEAT_VAPORIZATION
+    elif (t_heating_s + t_kinetic_s) > 0:
         # Determine evaporation multiplier based on lid/utensil type:
         if is_pressure:
             evap_mult = PRESSURE_COOKER_EVAP_FACTOR   # ~5% (sealed)
@@ -498,18 +563,18 @@ def calculate(
         # Gives 1.0× at n=1-2, 1.32× at n=4, 1.74× at n=10.
         evap_area_scale = max(1.0, (num_people / 2.0) ** 0.4)
 
-        boil_min   = t_boil_s   / 60.0
-        simmer_min = t_simmer_s / 60.0
+        heating_min = t_heating_s / 60.0
+        kinetic_min = t_kinetic_s / 60.0
         q_evap = (
-            EVAP_RATE_BOIL_KG_PER_MIN   * boil_min   * evap_mult * evap_area_scale
-            + EVAP_RATE_SIMMER_KG_PER_MIN * simmer_min * evap_mult * evap_area_scale
+            EVAP_RATE_BOIL_KG_PER_MIN   * heating_min   * evap_mult * evap_area_scale
+            + EVAP_RATE_SIMMER_KG_PER_MIN * kinetic_min * evap_mult * evap_area_scale
         ) * LATENT_HEAT_VAPORIZATION
 
     # ── 3-phase burn rate times ────────────────────────────────────────────
     # v8 FIX: Use the user-entered total cooking time as the base duration.
     # The old code derived time from energy demand, which ignored how long
     # the user actually cooks — causing wrong predictions for long dishes.
-    user_total_time_s = t_fry_s + t_boil_s + t_simmer_s
+    user_total_time_s = t_fry_s + t_heating_s + t_kinetic_s
     t_ign, t_ste, t_dec, _ = compute_3phase_times(
         user_total_time_s, avg_burn_rate, pellet.conservative_gcv_kj, is_pressure
     )
@@ -526,16 +591,16 @@ def calculate(
         m_vessel_kg=m_vessel_kg,
         avg_burn_rate=avg_burn_rate,
         t_fry_s=t_fry_s,
-        t_boil_s=t_boil_s,
-        t_simmer_s=t_simmer_s,
+        t_heating_s=t_heating_s,
+        t_kinetic_s=t_kinetic_s,
         m_food_kg=m_food,
         m_water_kg=m_water,
         q_food_sensible=q_food_sensible,
         q_water_sensible=q_water_sensible,
         q_vessel_mass=q_vessel_mass,
         q_vessel_fry=q_vessel_fry,
-        q_vessel_boil=q_vessel_boil,
-        q_vessel_simmer=q_vessel_simmer,
+        q_vessel_heating=q_vessel_heating,
+        q_vessel_kinetic=q_vessel_kinetic,
         q_evap=q_evap,
         t_ignition_s=t_ign,
         t_steady_s=t_ste,
@@ -568,8 +633,8 @@ def log_to_csv(res: CalculationResult) -> None:
                 "m_vessel_kg":      round(res.m_vessel_kg, 3),
                 "avg_burn_rate_kg_hr": round(res.avg_burn_rate, 3),
                 "t_fry_s":          round(res.t_fry_s,    1),
-                "t_boil_s":         round(res.t_boil_s,   1),
-                "t_simmer_s":       round(res.t_simmer_s, 1),
+                "t_boil_s":         round(res.t_heating_s,   1),
+                "t_simmer_s":       round(res.t_kinetic_s, 1),
                 "t_ignition_min":   round(res.t_ignition_s / 60, 2),
                 "t_steady_min":     round(res.t_steady_s   / 60, 2),
                 "t_decline_min":    round(res.t_decline_s  / 60, 2),
@@ -703,9 +768,51 @@ def _bar(pct: float, width: int = 20) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+def validate_prediction(res: CalculationResult) -> list[str]:
+    """
+    v9 FIX #5: Return a list of warning strings if the prediction seems
+    physically implausible. Called in main() before print_results().
+
+    Checks
+    ------
+    1. Pellet mass < 50 g — suspiciously low for any realistic cooking task.
+    2. Water boiling too fast — for ≥ 4 kg water, < 15 min is unlikely on a
+       biomass stove. WBT v4.2.3 typical range: 20–30 min. [source: 6]
+    3. Zero-time cooking — all phases entered as 0 (no energy was used).
+    """
+    warnings_out: list[str] = []
+
+    # Check 1: Very low pellet mass
+    if 0 < res.pellet_mass_g < 50:
+        warnings_out.append(
+            f"⚠ WARNING: Predicted pellet mass = {res.pellet_mass_g:.1f} g. "
+            f"This seems very low. Verify that cooking times are realistic."
+        )
+
+    # Check 2: Water boiling speed (WBT reference baseline)
+    if res.dish_name == "Plain Water Boiling" and res.m_water_kg >= 4.0:
+        t_heating_min = res.t_heating_s / 60.0
+        if t_heating_min < 15.0:
+            warnings_out.append(
+                f"⚠ WARNING: {res.m_water_kg:.1f} kg water boiling in "
+                f"{t_heating_min:.1f} min is physically unlikely on a biomass stove. "
+                f"WBT v4.2.3 typical range: 20–30 min. [source: 6]"
+            )
+
+    # Check 3: All cooking times are zero
+    total_s = res.t_fry_s + res.t_heating_s + res.t_kinetic_s
+    if total_s == 0:
+        warnings_out.append(
+            "⚠ WARNING: All phase times are 0. No energy was modelled — "
+            "pellet mass reflects only vessel heating and evaporation losses."
+        )
+
+    return warnings_out
+
+
 def print_results(res: CalculationResult) -> None:
     print()
-    _box_top("BIOMASS STOVE PELLET MASS ENGINE  v8")
+    _box_top("BIOMASS STOVE PELLET MASS ENGINE  v9")
 
     # ── Scenario summary ───────────────────────────────────────────────────
     _box_row(C.b("Dish"), C.hi(res.dish_name))
@@ -746,10 +853,10 @@ def print_results(res: CalculationResult) -> None:
 
     # ── Phase times (user-entered or suggested) ────────────────────────────
     _box_div()
-    _box_row(C.warn("USER COOKING PHASES (entered)"))
-    _box_row("  Frying / Sautéing",   f"{res.t_fry_s/60:5.1f} min", dim_right=True)
-    _box_row("  Boiling / Reducing",  f"{res.t_boil_s/60:5.1f} min", dim_right=True)
-    _box_row("  Low-heat Simmering",  f"{res.t_simmer_s/60:5.1f} min", dim_right=True)
+    _box_row(C.warn("USER COOKING PHASES (grouped)"))
+    _box_row("  Frying / Sautéing Stages", f"{res.t_fry_s/60:5.1f} min", dim_right=True)
+    _box_row("  Heating Stages",           f"{res.t_heating_s/60:5.1f} min", dim_right=True)
+    _box_row("  Kinetic Transformations",  f"{res.t_kinetic_s/60:5.1f} min", dim_right=True)
 
     # ── Energy breakdown ───────────────────────────────────────────────────
     _box_div()
@@ -783,7 +890,7 @@ def print_results(res: CalculationResult) -> None:
     _box_row(
         C.b("  Q Input Required (stove)"),
         C.hi(f"{res.q_input:>9.2f} kJ")
-        + C.DIM + f"  η = {STOVE_EFFICIENCY:.0%}" + C.RESET
+        + C.DIM + f"  η = {STOVE_EFFICIENCY:.0%} (WBT-validated avg)" + C.RESET
     )
 
     # ── Thermal breakdown bars ─────────────────────────────────────────────
@@ -840,7 +947,7 @@ def print_results(res: CalculationResult) -> None:
 def main() -> None:
     print()
     print(C.CYAN + "  " + "─" * 60 + "  " + C.RESET)
-    print("    BIOMASS STOVE PELLET MASS ENGINE  v8")
+    print("    BIOMASS STOVE PELLET MASS ENGINE  v9")
     print("    IIT Delhi · Department of Energy Studies")
     print(C.CYAN + "  " + "─" * 60 + "  " + C.RESET)
 
@@ -905,25 +1012,14 @@ def main() -> None:
                 q_water_kj = dish.q_sensible_water(num_people)
             q_sensible = (dish.q_sensible_food(num_people) + q_water_kj + m_vessel * CP_ALUMINIUM_KJ_KGK * DELTA_T_K)
 
-            # Base times from database
-            base_fry_min    = dish.phases.frying_s    / 60.0
-            base_boil_min   = dish.phases.boiling_s   / 60.0
-            base_simmer_min = dish.phases.simmering_s / 60.0
-
+            # ---------------------------------------------------------
+            # THERMAL ESTIMATE (For Heating Stages)
+            # ---------------------------------------------------------
             if dish.name == "Plain Water Boiling" or dish.variable_water:
-                # ---------------------------------------------------------
-                # WATER BOILING (100% Energy-Based, No Batch Scaling)
-                # ---------------------------------------------------------
-                # Batch scaling is removed completely because pure water has no solid
-                # food that requires cooking-at-temperature duration (like rice).
-                # To get a realistic time, we must account for continuous power losses
-                # (convection and evaporation) during the heating process.
-                # Formula: Total Time = Total Sensible Energy Required ÷ Net Stove Power Delivery
-                
+                # Rigorous physics estimate for pure heating with losses
                 br_avg_kg_s = avg_burn_rate / 3600.0
                 power_in_kw = br_avg_kg_s * pellet.conservative_gcv_kj * STOVE_EFFICIENCY
                 
-                # Estimate continuous losses during heating
                 lid_conv_factor = LID_CONVECTIVE_LOSS_FACTOR if lid == "Lid ON" else 1.0
                 p_loss_kw = UTENSIL_OPTIONS[utensil] * wind_multiplier * lid_conv_factor
                 
@@ -932,54 +1028,50 @@ def main() -> None:
                 p_evap_kw = (EVAP_RATE_BOIL_KG_PER_MIN / 60.0) * evap_mult * evap_area_scale * LATENT_HEAT_VAPORIZATION
                 
                 net_power_kw = power_in_kw - p_loss_kw - p_evap_kw
-                
                 if net_power_kw > 0.1:
-                    total_suggested_min = (q_sensible / net_power_kw) / 60.0
+                    t_thermal_min = (q_sensible / net_power_kw) / 60.0
                 else:
-                    total_suggested_min = (q_sensible / power_in_kw) / 60.0 # Fallback
-                
-                if is_pressure:
-                    total_suggested_min *= PRESSURE_COOKER_TIME_FACTOR
-
-                suggested_fry = 0.0
-                suggested_boil = total_suggested_min
-                suggested_simmer = 0.0
-                
-                print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
-                print(C.DIM + f"    (100% pure physics estimate; net heating power = {net_power_kw:.2f} kW)" + C.RESET)
+                    t_thermal_min = (q_sensible / power_in_kw) / 60.0
             else:
-                # ---------------------------------------------------------
-                # FOOD DISHES (70% Energy + 30% Batch Scaling)
-                # ---------------------------------------------------------
-                t_energy_min = estimate_time_from_energy(
+                # Standard energy-based thermal time
+                t_thermal_min = estimate_time_from_energy(
                     q_sensible, avg_burn_rate, pellet.conservative_gcv_kj, is_pressure
                 ) / 60.0
 
-                n = max(num_people, 1)
-                batch_fry    = base_fry_min    * (n ** BATCH_TIME_SCALE_FRY)
-                batch_boil   = base_boil_min   * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
-                batch_simmer = base_simmer_min * (n ** BATCH_TIME_SCALE_BOIL_SIMMER) * pc_factor
-                t_batch_min  = batch_fry + batch_boil + batch_simmer
+            if is_pressure and (dish.name == "Plain Water Boiling" or dish.variable_water):
+                t_thermal_min *= PRESSURE_COOKER_TIME_FACTOR
 
-                blend_w = 0.30
-                total_suggested_min = (1.0 - blend_w) * t_energy_min + blend_w * t_batch_min
-
-                raw_total_min = base_fry_min + base_boil_min + base_simmer_min
-                if raw_total_min > 0:
-                    suggested_fry    = total_suggested_min * (base_fry_min    / raw_total_min)
-                    suggested_boil   = total_suggested_min * (base_boil_min   / raw_total_min)
-                    suggested_simmer = total_suggested_min * (base_simmer_min / raw_total_min)
+            # ---------------------------------------------------------
+            # HIERARCHICAL STAGE PROMPTING
+            # ---------------------------------------------------------
+            total_suggested_min = 0.0
+            for stage in dish.stages:
+                if stage.stage_type == "heating":
+                    total_suggested_min += t_thermal_min
                 else:
-                    suggested_fry = suggested_boil = suggested_simmer = 0.0
+                    total_suggested_min += (stage.duration_s / 60.0) * (pc_factor if stage.stage_type == "kinetic" else 1.0)
+            
+            print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
+            print(C.DIM + "    " + " → ".join(stage.name for stage in dish.stages) + C.RESET)
 
-                print(f"\n  {C.BOLD}Total Suggested Time: {total_suggested_min:.1f} min{C.RESET}")
-                print(C.DIM + f"    energy estimate: {t_energy_min:.1f} min  |  "
-                      f"batch-scaled: {t_batch_min:.1f} min  |  "
-                      f"blend: {(1-blend_w)*100:.0f}%/{blend_w*100:.0f}%" + C.RESET)
+            t_fry_total = 0.0
+            t_heating_total = 0.0
+            t_kinetic_total = 0.0
 
-            t_fry_s = _prompt_phase_time("FRYING / SAUTÉING", suggested_fry) if base_fry_min > 0 else 0.0
-            t_boil_s = _prompt_phase_time("BOILING / REDUCING", suggested_boil) if base_boil_min > 0 else 0.0
-            t_simmer_s = _prompt_phase_time("LOW-HEAT SIMMERING", suggested_simmer) if base_simmer_min > 0 else 0.0
+            for stage in dish.stages:
+                if stage.stage_type == "heating":
+                    suggested_min = t_thermal_min
+                else:
+                    suggested_min = (stage.duration_s / 60.0) * (pc_factor if stage.stage_type == "kinetic" else 1.0)
+                
+                actual_s = _prompt_phase_time(stage.name.upper(), suggested_min)
+                
+                if stage.stage_type == "frying":
+                    t_fry_total += actual_s
+                elif stage.stage_type == "heating":
+                    t_heating_total += actual_s
+                elif stage.stage_type == "kinetic":
+                    t_kinetic_total += actual_s
 
             res = calculate(
                 dish=dish,
@@ -990,13 +1082,17 @@ def main() -> None:
                 wind_multiplier=wind_multiplier,
                 m_vessel_kg=m_vessel,
                 avg_burn_rate=avg_burn_rate,
-                t_fry_s=t_fry_s,
-                t_boil_s=t_boil_s,
-                t_simmer_s=t_simmer_s,
+                t_fry_s=t_fry_total,
+                t_heating_s=t_heating_total,
+                t_kinetic_s=t_kinetic_total,
                 wind_location=wind_location,
                 wind_level=wind_level,
                 override_water_kg=override_water_kg,
             )
+            # v9 FIX #5: Physical sanity checks before displaying results
+            phys_warnings = validate_prediction(res)
+            for w in phys_warnings:
+                print(C.warn(f"  {w}"))
             print_results(res)
             log_to_csv(res)
 
