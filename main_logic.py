@@ -414,51 +414,20 @@ def collect_inputs() -> dict:
         except KeyboardInterrupt:
             _handle_interrupt()
 
-    # ── Step 8: Confirm or override cooking times ─────────────────────────
-    # Total cooking time comes from food_db stages (the ground truth).
-    # Boiling phase scales sub-linearly with batch size (n^0.5).
-    # Frying and simmering times are independent of batch size.
-    n = inp["portions"]
-    is_pc = inp["is_pressure_cooker"]
-
+    # ── Step 8: Pass kinetic times to the solver ─────────────────────────
+    # We no longer ask the user for total time. 
+    # Heating time will be strictly solved by Q_sensible / Stove Power.
     t_fry_s, t_boil_s, t_simmer_s = _derive_cooking_phase_times(dish)
-    # Boiling scales with n^0.5 — more water needs more time at fixed power
-    t_boil_s = t_boil_s * (n ** BOIL_TIME_SCALE_EXP)
+    is_pc = inp["is_pressure_cooker"]
 
     if is_pc:
         t_boil_s   *= PRESSURE_COOKER_TIME_FACTOR
         t_simmer_s *= PRESSURE_COOKER_TIME_FACTOR
 
-    t_total_s_suggested = t_fry_s + t_boil_s + t_simmer_s
-
-    _section("Step 8 / 8  —  Cooking Time")
-    _info("Frying / sautéing phase",  f"{t_fry_s/60:.1f}",    "min (from food_db)")
-    _info("Boiling / reducing phase", f"{t_boil_s/60:.1f}",   "min (scaled for batch)")
-    _info("Simmering phase",          f"{t_simmer_s/60:.1f}", "min (from food_db)")
-    print(_c(
-        f"\n  >>> Suggested total cooking time: {t_total_s_suggested/60:.1f} min",
-        ANSI_BOLD, ANSI_GREEN
-    ))
-
-    t_total_min = _prompt_float(
-        "Total cooking time (min) — press Enter to accept suggestion",
-        default=round(t_total_s_suggested / 60.0, 1),
-        lo=0.0, hi=600.0
-    )
-    t_total_s = t_total_min * 60.0
-
-    # Distribute user-entered time proportionally across phases
-    if t_total_s_suggested > 0:
-        ratio = t_total_s / t_total_s_suggested
-    else:
-        ratio = 1.0
-
-    inp["t_fry_s"]    = t_fry_s    * ratio
-    inp["t_boil_s"]   = t_boil_s   * ratio
-    inp["t_simmer_s"] = t_simmer_s * ratio
-    inp["t_total_s"]  = t_total_s
-    inp["t_total_min"] = t_total_min
-
+    inp["t_fry_s"]    = t_fry_s
+    inp["t_boil_s"]   = t_boil_s
+    inp["t_simmer_s"] = t_simmer_s
+    
     return inp
 
 
@@ -467,30 +436,15 @@ def collect_inputs() -> dict:
 # =============================================================================
 
 def run_physics(inp: dict) -> dict:
-    """
-    Execute the corrected 5-term energy balance.
-
-    Terms
-    -----
-    Q_food     : sensible heat to raise raw food solids from t_amb to 100°C
-    Q_water    : sensible heat to raise added cooking water from t_amb to 100°C
-    Q_vessel   : sensible heat absorbed by the pot/vessel itself
-    Q_maintain : continuous wall heat loss over entire cook time
-    Q_evap     : latent heat of water evaporated during boiling/simmering
-    Q_total    = sum of above 5 terms
-    Q_input    = Q_total / η  (energy the stove must supply)
-    m_pellet   = Q_input / GCV_min
-    """
-
     dish: DishProfile  = inp["dish"]
     pellet: PelletType = inp["pellet"]
     is_pc: bool        = inp["is_pressure_cooker"]
+    n = inp["portions"]
 
     # ── Masses ───────────────────────────────────────────────────────────────
-    n = inp["portions"]
     if dish.variable_water:
-        m_food_kg  = dish.food_mass_per_serving_kg     # trace solids (≈ 0.001 kg)
-        m_water_kg = inp["water_liters"]               # 1 L water ≈ 1 kg
+        m_food_kg  = dish.food_mass_per_serving_kg
+        m_water_kg = inp["water_liters"]
     else:
         m_food_kg  = dish.food_mass_per_serving_kg  * n
         m_water_kg = dish.added_water_per_serving_kg * n
@@ -498,115 +452,77 @@ def run_physics(inp: dict) -> dict:
     m_vessel_kg  = inp["m_vessel_kg"]
     cp_vessel    = inp["cp_vessel_kj_kgk"]
     cp_food      = dish.cp_food_kj_kgk
+    gcv_kj_kg    = pellet.conservative_gcv_kj
 
-    # ── ΔT: allow for ambient temperature input  [CCT protocol baseline: 25°C] ──
-    # Pressure cooker: target 120°C (boiling point at ~2 atm)
     t_target = 120.0 if is_pc else 100.0
     delta_t  = max(t_target - inp["t_ambient_c"], 1.0)
 
-    # ── TERM 1: Q_food ───────────────────────────────────────────────────────
-    # Q = m_food × Cp_food × ΔT  [Choi-Okos 1986; ICMR-NIN 2017]  [1,2]
-    q_food = m_food_kg * cp_food * delta_t
-
-    # ── TERM 2: Q_water ──────────────────────────────────────────────────────
-    # Q = m_water × Cp_water × ΔT  [NIST Cp_water = 4.184 kJ/kg·K at 60°C]
-    q_water = m_water_kg * CP_WATER_KJ_KGK * delta_t
-
-    # ── TERM 3: Q_vessel ─────────────────────────────────────────────────────
-    # Q = m_vessel × Cp_vessel × ΔT  [Incropera 2007 Table A.1]  [9]
+    # ── STEP A: Sensible Heat (Q_sensible) ───────────────────────────────────
+    q_food   = m_food_kg * cp_food * delta_t
+    q_water  = m_water_kg * CP_WATER_KJ_KGK * delta_t
     q_vessel = m_vessel_kg * cp_vessel * delta_t
+    q_sensible = q_food + q_water + q_vessel
 
-    # ── TERM 4: Q_maintain ───────────────────────────────────────────────────
-    # Q = P_loss × wind_multiplier × t_total
-    # P_loss: MacCarty et al. (2010) measured for each vessel type.  [5]
-    # Wind multiplier: Churchill & Bernstein (1977) correlation.  [11]
-    # Applied uniformly over entire cook time (no 50% factor — that had no basis).
+    # ── STEP B: Dynamic Efficiency (Thermal Acceptance Curve) ────────────────
+    # A tiny pot cannot capture 45% of a massive fire. Efficiency scales by volume.
+    REF_VOLUME_L = 5.0
+    vol_l = max(m_water_kg, 0.1)
+    acceptance_factor = max(0.25, min(1.0, (vol_l / REF_VOLUME_L) ** 0.5))
+    actual_efficiency = STOVE_EFFICIENCY * acceptance_factor
+
+    # ── STEP C: Closed-Loop Time Solver ──────────────────────────────────────
+    # Burn rate (0.78 kg/hr) dictates power. Power dictates heating time.
+    stove_burn_rate_kg_s = 0.78 / 3600.0
+    stove_power_kw = stove_burn_rate_kg_s * gcv_kj_kg * actual_efficiency
+    
+    t_heating_s = q_sensible / stove_power_kw
+    t_kinetic_s = inp["t_fry_s"] + inp["t_boil_s"] + inp["t_simmer_s"]
+    t_total_s   = t_heating_s + t_kinetic_s
+    
+    inp["t_total_s"] = t_total_s
+    inp["t_total_min"] = t_total_s / 60.0
+
+    # ── STEP D: Energy Bleed (Split-Phase Losses) ────────────────────────────
+    # Convection: Pot averages 50% delta-T during heat-up, 100% during kinetic.
     p_loss_kw   = inp["vessel_p_loss_kw"]
     wind_mult   = inp["wind_multiplier"]
-    t_total_s   = inp["t_total_s"]
-    q_maintain  = p_loss_kw * wind_mult * t_total_s
+    q_maintain  = (p_loss_kw * wind_mult) * (0.5 * t_heating_s + 1.0 * t_kinetic_s)
 
-    # ── TERM 5: Q_evap ───────────────────────────────────────────────────────
-    # Evaporation occurs only during boiling + simmering phases.
-    # Rate from WBT v4.2.3 (2017).  [6]
-    # Lid reduces evaporation to 15% of open-lid rate.  [5,6]
+    # Evaporation: Square-Cube law scaling. Only applied during kinetic phase.
     evap_fraction = inp["evap_fraction"]
-    t_boil_min   = inp["t_boil_s"]   / 60.0
-    t_simmer_min  = inp["t_simmer_s"] / 60.0
-    m_evap_kg = (
-        EVAP_RATE_BOIL_KG_MIN   * t_boil_min   * evap_fraction
-        + EVAP_RATE_SIMMER_KG_MIN * t_simmer_min * evap_fraction
-    )
-    q_evap = m_evap_kg * LATENT_HEAT_KJ_KG
-
-    # Roti is dry-cooked on a tawa; no pot evaporation.
     if dish.name == "Roti":
-        q_evap    = 0.0
+        q_evap = 0.0
         m_evap_kg = 0.0
+    else:
+        base_evap_kg_s = (15.0 / 1000.0) / 60.0  # 15 g/min baseline for open 5L pot
+        scaled_evap_rate_kg_s = base_evap_kg_s * ((vol_l / REF_VOLUME_L) ** (2.0 / 3.0))
+        m_evap_kg = scaled_evap_rate_kg_s * t_kinetic_s * evap_fraction
+        q_evap = m_evap_kg * LATENT_HEAT_KJ_KG
 
-    # ── Grand total ───────────────────────────────────────────────────────────
-    q_total = q_food + q_water + q_vessel + q_maintain + q_evap
-
-    # ── Stove input ───────────────────────────────────────────────────────────
-    q_input = q_total / STOVE_EFFICIENCY
-
-    # ── Pellet mass ───────────────────────────────────────────────────────────
-    gcv_kj_kg    = pellet.conservative_gcv_kj
+    # ── STEP E: Final Energy & Pellet Calculation ────────────────────────────
+    q_total = q_sensible + q_maintain + q_evap
+    q_input = q_total / actual_efficiency
     pellet_mass_kg = q_input / gcv_kj_kg
     pellet_mass_g  = pellet_mass_kg * 1000.0
 
-    # ── 3-Phase combustion display windows (receipt only) ─────────────────────
-    # Does NOT change the pellet mass — purely for display.
-    # Phase times are fractions of t_total:
-    t_ign_s     = PHASE_IGN_FRAC    * t_total_s
-    t_steady_s  = PHASE_STEADY_FRAC * t_total_s
-    t_decline_s = PHASE_DECLINE_FRAC * t_total_s
-    # Display eta_weighted for reference only:
-    eta_display = (
-        PHASE_IGN_ETA * t_ign_s
-        + PHASE_STEADY_ETA * t_steady_s
-        + PHASE_DECLINE_ETA * t_decline_s
-    ) / (t_total_s or 1.0)
-
-    # ── Percentages ───────────────────────────────────────────────────────────
+    # ── Display formatting variables ─────────────────────────────────────────
     q_gt = q_total or 1.0
-    pct_food    = 100.0 * q_food    / q_gt
-    pct_water   = 100.0 * q_water   / q_gt
-    pct_vessel  = 100.0 * q_vessel  / q_gt
-    pct_maintain= 100.0 * q_maintain / q_gt
-    pct_evap    = 100.0 * q_evap    / q_gt
-
-    # ── Store everything back in inp ──────────────────────────────────────────
     inp.update({
-        "m_food_kg":     m_food_kg,
-        "m_water_kg":    m_water_kg,
-        "cp_food":       cp_food,
-        "delta_t":       delta_t,
-        "t_target_c":    t_target,
-
-        "q_food":        q_food,
-        "q_water":       q_water,
-        "q_vessel":      q_vessel,
-        "q_maintain":    q_maintain,
-        "q_evap":        q_evap,
-        "q_total":       q_total,
-        "q_input":       q_input,
-
-        "m_evap_kg":     m_evap_kg,
-        "gcv_kj_kg":     gcv_kj_kg,
-        "pellet_mass_kg": pellet_mass_kg,
-        "pellet_mass_g":  pellet_mass_g,
-
-        "t_ign_s":       t_ign_s,
-        "t_steady_s":    t_steady_s,
-        "t_decline_s":   t_decline_s,
-        "eta_display":   eta_display,
-
-        "pct_food":      pct_food,
-        "pct_water":     pct_water,
-        "pct_vessel":    pct_vessel,
-        "pct_maintain":  pct_maintain,
-        "pct_evap":      pct_evap,
+        "m_food_kg": m_food_kg, "m_water_kg": m_water_kg, "cp_food": cp_food,
+        "delta_t": delta_t, "t_target_c": t_target, "q_food": q_food,
+        "q_water": q_water, "q_vessel": q_vessel, "q_maintain": q_maintain,
+        "q_evap": q_evap, "q_total": q_total, "q_input": q_input,
+        "m_evap_kg": m_evap_kg, "gcv_kj_kg": gcv_kj_kg,
+        "pellet_mass_kg": pellet_mass_kg, "pellet_mass_g": pellet_mass_g,
+        "pct_food": 100.0 * q_food / q_gt, "pct_water": 100.0 * q_water / q_gt,
+        "pct_vessel": 100.0 * q_vessel / q_gt, "pct_maintain": 100.0 * q_maintain / q_gt,
+        "pct_evap": 100.0 * q_evap / q_gt,
+        
+        # 3-Phase display logic based on derived total time
+        "t_ign_s": PHASE_IGN_FRAC * t_total_s,
+        "t_steady_s": PHASE_STEADY_FRAC * t_total_s,
+        "t_decline_s": PHASE_DECLINE_FRAC * t_total_s,
+        "eta_display": actual_efficiency
     })
     return inp
 
