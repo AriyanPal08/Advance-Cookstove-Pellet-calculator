@@ -1,6 +1,7 @@
 # NEW CHANGES coming soon v10
-updating the calculation of 3 phase combustion 
-adding features of slecting material of which utensils are made up of
+i) updating the calculation of 3 phase combustion model 
+ii) adding features of selecting material of which utensils are made up of
+iii) improvement in pellets calculation and cooking time 
 # Advance Cookstove Pellet calculator
 A thermodynamic modeling tool to calculate biomass pellet requirements for improved cookstoves. Uses a 5-term energy balance model with 3-phase combustion dynamics, wind/lid effects, and realistic Indian cooking parameters.
 # Biomass Cookstove Pellet Calculator
