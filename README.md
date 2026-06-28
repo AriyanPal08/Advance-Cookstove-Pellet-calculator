@@ -1,6 +1,10 @@
 # NEW CHANGES coming soon v10
 i) updating the calculation of 3 phase combustion model 
+
+
 ii) adding features of selecting material of which utensils are made up of
+
+
 iii) improvement in pellets calculation and cooking time 
 # Advance Cookstove Pellet calculator
 A thermodynamic modeling tool to calculate biomass pellet requirements for improved cookstoves. Uses a 5-term energy balance model with 3-phase combustion dynamics, wind/lid effects, and realistic Indian cooking parameters.
@@ -22,3 +26,5 @@ A thermodynamic modeling tool to estimate biomass pellet fuel requirements for i
 
 The model calculates the total thermal energy required to cook a dish using:
 Q_total = Q_food + Q_water + Q_vessel_mass + Q_vessel_loss + Q_evaporation
+
+then model also calculates the frying , boiling ,aimmering time required for the food the adds them
