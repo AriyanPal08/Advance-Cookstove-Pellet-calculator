@@ -88,6 +88,14 @@ class CookingStage:
 
 
 @dataclass(frozen=True)
+class LegacyPhaseDurations:
+    """Backward-compatible phase timing container for older callers."""
+    frying_s: int = 0
+    boiling_s: int = 0
+    simmering_s: int = 0
+
+
+@dataclass(frozen=True)
 class DishProfile:
     """
     Thermodynamic profile for one dish — all values in RAW state.
@@ -165,6 +173,17 @@ class DishProfile:
     def q_sensible_water(self, n: int) -> float:
         """Q = m_water × Cp_water × ΔT  (kJ) — typically the dominant term"""
         return self.total_water_mass_kg(n) * CP_WATER_KJ_KGK * DELTA_T_K
+
+    @property
+    def phases(self) -> LegacyPhaseDurations:
+        """Backward-compatible access to phase timings derived from stages."""
+        frying_s = sum(stage.duration_s for stage in self.stages if stage.stage_type == "frying")
+        kinetic_s = sum(stage.duration_s for stage in self.stages if stage.stage_type == "kinetic")
+        return LegacyPhaseDurations(
+            frying_s=frying_s,
+            boiling_s=kinetic_s,
+            simmering_s=0,
+        )
 
 
 # ---------------------------------------------------------------------------
