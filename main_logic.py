@@ -21,10 +21,11 @@ CHANGE LOG  v2 → v3
    is shown, and the user may press Enter to accept it or type a precise
    override value. inp["m_pot"] holds whichever value is used downstream.
 
-3. TOTAL TIME ESTIMATOR (UPDATED — convection term only)
-   P_conv_avg now reads inp["k_conv_current"] instead of the removed
-   K_CONV_STILL_AIR constant. Every other term (P_rad_avg, MCp_total,
-   t_heat_s, t_suggested_total_s) is identical in formula to v2.
+3. TOTAL TIME ESTIMATOR (UPDATED — transient heat-up integration)
+   P_conv now reads inp["k_conv_current"] (v3).  t_heat_s is computed by
+   a 1 Hz transient ramp that mirrors the live loop's Step 2C + Route B
+   (T < 100 °C) so temperature-dependent convection and T⁴ radiation are
+   captured.  t_suggested_total_s adds a 60–120 s safety buffer.
 
 4. 1Hz LOOP — STEP 2C (UPDATED — convection term only)
    P_conv reads inp["k_conv_current"] instead of K_CONV_STILL_AIR.
@@ -335,7 +336,7 @@ def collect_inputs() -> dict:
     eta_geom = MAX_EFFICIENCY * max(0.25, min(1.0, math.sqrt(m_w / 5.0)))
     inp.update({"V_m3": V_m3, "d_m": d, "A_m2": A, "eta_geom": eta_geom})
 
-    # ── Step 7: Total Time Estimator  (convection term now dynamic) ──────────
+    # ── Step 7: Total Time Estimator  (transient heat-up integration) ────────
     _sec("Step 7 / 7  —  Total Cooking Time (Heating + Simmering)")
 
     P_in_kw = (FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
@@ -344,31 +345,53 @@ def collect_inputs() -> dict:
                  + inp["m_pot"] * inp["cp_pot"])
 
     T_amb = inp["t_ambient_c"]
-    T_avg = (T_amb * 0.4) + (100.0 * 0.6)
-    T_avg_K = T_avg + 273.15
     T_amb_K = T_amb + 273.15
-    # Convection term now uses the dynamic Wind Factor coefficient (NEW v3)
-    # in place of the removed static K_CONV_STILL_AIR constant.
-    P_conv_avg = inp["k_conv_current"] * A * (T_avg_K - T_amb_K)
-    P_rad_avg  = EMISSIVITY * SIGMA * A * (T_avg_K**4 - T_amb_K**4)
-    Q_out_avg_kw = (P_conv_avg + P_rad_avg) / 1000.0
+    k_conv = inp["k_conv_current"]
 
-    denom = P_in_kw - Q_out_avg_kw
-    if denom > 0:
-        t_heat_s = (MCp_total * (100.0 - T_amb)) / denom
-    else:
-        # Defensive guard: stove cannot overcome ambient heat loss at this
-        # power level. Not expected for any realistic pellet/utensil
-        # combination, but prevented from crashing or returning a
-        # negative/undefined heat-up time.
+    # Transient heat-up integration — mirrors 1 Hz loop Steps 2C + Route B
+    # (T < 100 °C).  Heat bleed grows with vessel temperature (convection
+    # ∝ ΔT, radiation ∝ T⁴), so a single average-temperature estimate
+    # mis-predicts the ramp; stepping at 1 Hz matches the live solver.
+    T_pot_est = T_amb
+    t_heat_s = 0.0
+    Q_out_accum_kw_s = 0.0
+    heat_cannot_rise = False
+
+    while T_pot_est < 100.0 and t_heat_s < MAX_SIMULATION_TIME:
+        T_pot_K = T_pot_est + 273.15
+        P_conv = k_conv * A * (T_pot_K - T_amb_K)
+        P_rad  = EMISSIVITY * SIGMA * A * (T_pot_K**4 - T_amb_K**4)
+        Q_out_kw = (P_conv + P_rad) / 1000.0
+        Q_avail = P_in_kw * dt - Q_out_kw * dt
+
+        if Q_avail <= 0.0:
+            heat_cannot_rise = True
+            break
+
+        Q_to_100 = MCp_total * (100.0 - T_pot_est)
+        if Q_avail <= Q_to_100:
+            T_pot_est += Q_avail / MCp_total
+        else:
+            T_pot_est = 100.0
+
+        t_heat_s += dt
+        Q_out_accum_kw_s += Q_out_kw * dt
+
+    if heat_cannot_rise or T_pot_est < 100.0:
         t_heat_s = 0.0
+        Q_out_accum_kw_s = 0.0
         _warn(
-            "Stove input power does not exceed estimated average heat loss; "
+            "Stove input power does not exceed heat loss during heat-up; "
             "heat-up time estimate defaulted to 0 s. Total time will rely on "
             "kinetic time only — review pellet/utensil selection."
         )
 
-    t_suggested_total_s   = t_heat_s + inp["t_kinetic_base_s"] + 90.0
+    Q_out_avg_kw = (Q_out_accum_kw_s / t_heat_s) if t_heat_s > 0.0 else 0.0
+
+    # Post heat-up safety margin (60–120 s) for discrete-step lag and
+    # brief post-boil transients before kinetic simmering stabilises.
+    t_safety_buffer_s = min(120.0, max(60.0, 60.0 + 0.03 * t_heat_s))
+    t_suggested_total_s   = t_heat_s + inp["t_kinetic_base_s"] + t_safety_buffer_s
     t_suggested_total_min = t_suggested_total_s / 60.0
 
     print(_c(f"\n  Estimated heat-up time     : {t_heat_s/60:.1f} min", DIM))
