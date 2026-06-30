@@ -1,7 +1,17 @@
 """
 main_logic.py
-1Hz Discrete Transient Biomass Cookstove Simulator  — Version 3
+1Hz Discrete Transient Biomass Cookstove Simulator  — Version 4
 IIT Delhi · Department of Energy Studies
+
+=============================================================================
+CHANGE LOG  v3 → v4
+=============================================================================
+1. SHARED PHYSICS HELPERS — geometry, emissivity, heat-loss, safety-buffer
+   functions used by both the Total Time Estimator and the live 1 Hz loop.
+2. GEOMETRY — cylinder h/d model per utensil; lid reduces exposed top area.
+3. TOTAL TIME ESTIMATOR — full transient preview through heat-up + kinetic.
+4. PELLET CALCULATION — energy balance (Q_sensible + Q_evap + Q_out).
+5. 1HZ LOOP — energy telemetry added; Step 2D routing cascade unchanged.
 
 =============================================================================
 CHANGE LOG  v2 → v3
@@ -79,7 +89,7 @@ MAX_EFFICIENCY: float = 0.45  # —       maximum combustion efficiency
 L_V:         float = 2257.0   # kJ/kg  — latent heat of vaporisation at 100°C
 SIGMA:       float = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
 dt:          float = 1.0      # s      — simulation time step (1 Hz)
-EMISSIVITY:  float = 0.3      # —       vessel surface emissivity
+EMISSIVITY_DEFAULT: float = 0.35  # — oxidised aluminium [Incropera Table 7.1]
 # Note: K_CONV_STILL_AIR is REMOVED from the hardcoded constants in v3.
 # It is now set dynamically per-session as inp["k_conv_current"] from the
 # Wind Factor menu below (still air = 10.0 W/m²K is preserved as option [1]).
@@ -107,6 +117,220 @@ LID_FACTOR_OFF: float = 1.00
 
 # Loop safety cap (prevents infinite loop on pathological inputs)
 MAX_SIMULATION_TIME: float = 6 * 3600.0  # 6 hours in seconds
+
+# Procurement margin on physics-based pellet recommendation (feed-rate variance)
+PELLET_PROCUREMENT_MARGIN: float = 0.08  # 8 %
+
+# =============================================================================
+# SECTION 3b — SHARED PHYSICS HELPERS  (v4 — single source of truth)
+# =============================================================================
+
+def _emissivity_for_utensil(utensil: Utensil) -> float:
+    """Material-aware surface emissivity [Incropera Table 7.1]."""
+    if utensil.cp_kj_kgk < 0.55:
+        return 0.55   # cast iron / tawa
+    if utensil.is_pressure:
+        return 0.32   # polished Al body, minimal oxidation
+    return EMISSIVITY_DEFAULT
+
+
+def _geometry_profile(utensil_name: str) -> tuple[float, float]:
+    """Return (height/diameter ratio, surface-area multiplier) for utensil type."""
+    if "Kadhai" in utensil_name or "Wok" in utensil_name:
+        return 0.45, 1.12
+    if "Tawa" in utensil_name or "Pan" in utensil_name:
+        return 0.28, 1.30
+    return 0.65, 1.00
+
+
+def compute_vessel_geometry(
+    m_water_kg: float,
+    utensil_name: str,
+    lid_factor: float,
+) -> dict[str, float]:
+    """
+    Reverse-engineer pot dimensions from water mass.
+    Cylinder model: V = π·r²·h with utensil-specific h/d ratio.
+    Exposed loss area = side wall + partial top (bottom insulated by stove).
+    """
+    V_m3 = m_water_kg / 1000.0
+    h_over_d, surface_mult = _geometry_profile(utensil_name)
+    d_m = (4.0 * V_m3 / (math.pi * h_over_d)) ** (1.0 / 3.0)
+    h_m = h_over_d * d_m
+    r_m = d_m / 2.0
+    A_side = math.pi * d_m * h_m
+    A_top  = math.pi * r_m ** 2
+    top_exposure = 0.30 if lid_factor <= LID_FACTOR_ON else 0.85
+    A_m2 = surface_mult * (A_side + top_exposure * A_top)
+    eta_geom = MAX_EFFICIENCY * max(0.25, min(1.0, math.sqrt(m_water_kg / 5.0)))
+    return {"V_m3": V_m3, "d_m": d_m, "h_m": h_m, "A_m2": A_m2, "eta_geom": eta_geom}
+
+
+def heat_loss_w(
+    T_pot_c: float,
+    T_amb_c: float,
+    A_m2: float,
+    k_conv: float,
+    emissivity: float,
+) -> float:
+    """Total convective + radiative heat bleed (W). Used by estimator and loop."""
+    T_pot_K = T_pot_c + 273.15
+    T_amb_K = T_amb_c + 273.15
+    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K)
+    P_rad  = emissivity * SIGMA * A_m2 * (T_pot_K ** 4 - T_amb_K ** 4)
+    return P_conv + P_rad
+
+
+def heat_loss_kw(
+    T_pot_c: float,
+    T_amb_c: float,
+    A_m2: float,
+    k_conv: float,
+    emissivity: float,
+) -> float:
+    """Heat bleed in kW (convenience wrapper)."""
+    return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity) / 1000.0
+
+
+def compute_safety_buffer_s(
+    t_heat_s: float,
+    k_conv: float,
+    m_water_kg: float,
+) -> float:
+    """
+    Justified post-estimate safety margin (60–120 s).
+
+    Components:
+      • 60 s base — 1 Hz discretisation lag at boil crossover + operator start delay
+      • up to 30 s — accumulated per-minute step error scales with heat-up duration
+      • up to 20 s — outdoor wind tiers add convective-loss uncertainty
+      • up to 10 s — large batches (>8 kg) have slower non-linear ramp tail
+    """
+    buffer = 60.0
+    buffer += min(30.0, 0.04 * t_heat_s)
+    buffer += min(20.0, 5.0 * max(0.0, k_conv / 10.0 - 1.0))
+    buffer += min(10.0, max(0.0, (m_water_kg - 8.0) * 1.5))
+    return min(120.0, max(60.0, buffer))
+
+
+def _transient_preview_tick(
+    T_pot: float,
+    m_water: float,
+    m_food: float,
+    cp_food: float,
+    m_pot: float,
+    cp_pot: float,
+    P_in_kw: float,
+    A_m2: float,
+    k_conv: float,
+    emissivity: float,
+    T_amb: float,
+    lid_fac: float,
+) -> tuple[float, float, float]:
+    """
+    Execute one 1 Hz physics tick (Steps 2A–2D).
+    Returns (T_pot_new, m_water_new, Q_out_kj).
+    Routing logic is identical to run_1hz_loop Step 2D.
+    """
+    Q_in  = P_in_kw * dt
+    MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
+    Q_out = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity) * dt
+    Q_avail = Q_in - Q_out
+
+    if Q_avail <= 0.0:
+        if MCp_total > 0:
+            T_pot += Q_avail / MCp_total
+    else:
+        if T_pot < 100.0:
+            Q_to_100 = MCp_total * (100.0 - T_pot)
+            if Q_avail <= Q_to_100:
+                T_pot   += Q_avail / MCp_total
+                Q_avail  = 0.0
+            else:
+                T_pot    = 100.0
+                Q_avail -= Q_to_100
+
+        if Q_avail > 0 and m_water > 0:
+            m_evap_potential = (Q_avail / L_V) * lid_fac
+            if m_evap_potential <= m_water:
+                m_water -= m_evap_potential
+                Q_avail  = 0.0
+            else:
+                Q_boil  = (m_water / lid_fac) * L_V
+                m_water = 0.0
+                Q_avail -= Q_boil
+
+        if Q_avail > 0 and m_water <= 0:
+            MCp_dry = (m_food * cp_food) + (m_pot * cp_pot)
+            if MCp_dry > 0:
+                T_pot += Q_avail / MCp_dry
+            Q_avail = 0.0
+
+    return T_pot, m_water, Q_out
+
+
+def estimate_cook_time(
+    m_food: float,
+    cp_food: float,
+    m_water: float,
+    m_pot: float,
+    cp_pot: float,
+    t_kinetic_s: float,
+    P_in_kw: float,
+    A_m2: float,
+    k_conv: float,
+    emissivity: float,
+    T_amb: float,
+    lid_fac: float,
+) -> dict[str, float]:
+    """
+    Shadow 1 Hz transient preview: heat-up to 100 °C, then kinetic simmer.
+    Returns timing diagnostics used for the Total Time Estimator.
+    """
+    T_pot = T_amb
+    m_w   = m_water
+    t_elapsed = 0.0
+    t_boil: float | None = None
+    Q_out_accum = 0.0
+    heat_cannot_rise = False
+
+    while T_pot < 100.0 and t_elapsed < MAX_SIMULATION_TIME:
+        T_prev = T_pot
+        T_pot, m_w, Q_out = _transient_preview_tick(
+            T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
+            P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
+        )
+        if T_pot <= T_prev and T_pot < 100.0:
+            heat_cannot_rise = True
+            break
+        t_elapsed += dt
+        Q_out_accum += Q_out
+        if T_pot >= 100.0 and t_boil is None:
+            t_boil = t_elapsed
+
+    t_heat_s = t_elapsed
+
+    if not heat_cannot_rise and t_kinetic_s > 0.0:
+        kinetic_ticks = int(t_kinetic_s)
+        for _ in range(kinetic_ticks):
+            if t_elapsed >= MAX_SIMULATION_TIME:
+                break
+            T_pot, m_w, Q_out = _transient_preview_tick(
+                T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
+                P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
+            )
+            t_elapsed += dt
+            Q_out_accum += Q_out
+
+    return {
+        "t_heat_s": t_heat_s,
+        "t_boil_s": t_boil if t_boil is not None else 0.0,
+        "t_preview_s": t_elapsed,
+        "Q_out_accum_kj": Q_out_accum,
+        "heat_cannot_rise": float(heat_cannot_rise),
+        "m_water_end_kg": m_w,
+    }
+
 
 # =============================================================================
 # TERMINAL COLOUR HELPERS
@@ -205,7 +429,7 @@ def collect_inputs() -> dict:
     Phase 1: collect dish, utensil, pellet, ambient temperature, and the
     unified Total Cooking Time (via the new Total Time Estimator).
     """
-    _hdr("IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v3")
+    _hdr("IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v4")
     inp: dict = {}
 
     # ── Step 1: Dish selection ────────────────────────────────────────────────
@@ -328,74 +552,62 @@ def collect_inputs() -> dict:
             inp["lid_label"]  = "Lid OFF"
             inp["lid_factor"] = LID_FACTOR_OFF
 
-    # ── Geometry: reverse-engineer pot diameter, A_m2, eta_geom ──────────────
+    # ── Geometry: cylinder model with utensil-specific h/d and lid exposure ───
     m_w = inp["m_water_initial"]
-    V_m3 = m_w / 1000.0
-    d    = (4.0 * V_m3 / math.pi) ** (1.0 / 3.0)
-    A    = 1.25 * math.pi * d ** 2
-    eta_geom = MAX_EFFICIENCY * max(0.25, min(1.0, math.sqrt(m_w / 5.0)))
-    inp.update({"V_m3": V_m3, "d_m": d, "A_m2": A, "eta_geom": eta_geom})
+    inp["emissivity"] = _emissivity_for_utensil(utensil)
+    geom = compute_vessel_geometry(m_w, inp["utensil_name"], inp["lid_factor"])
+    inp.update(geom)
 
-    # ── Step 7: Total Time Estimator  (transient heat-up integration) ────────
+    # ── Step 7: Total Time Estimator  (full transient preview) ───────────────
     _sec("Step 7 / 7  —  Total Cooking Time (Heating + Simmering)")
 
+    eta_geom = inp["eta_geom"]
     P_in_kw = (FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
     MCp_total = (inp["m_food"] * inp["cp_food"]
                  + m_w * CP_WATER
                  + inp["m_pot"] * inp["cp_pot"])
 
     T_amb = inp["t_ambient_c"]
-    T_amb_K = T_amb + 273.15
     k_conv = inp["k_conv_current"]
 
-    # Transient heat-up integration — mirrors 1 Hz loop Steps 2C + Route B
-    # (T < 100 °C).  Heat bleed grows with vessel temperature (convection
-    # ∝ ΔT, radiation ∝ T⁴), so a single average-temperature estimate
-    # mis-predicts the ramp; stepping at 1 Hz matches the live solver.
-    T_pot_est = T_amb
-    t_heat_s = 0.0
-    Q_out_accum_kw_s = 0.0
-    heat_cannot_rise = False
+    preview = estimate_cook_time(
+        m_food=inp["m_food"],
+        cp_food=inp["cp_food"],
+        m_water=m_w,
+        m_pot=inp["m_pot"],
+        cp_pot=inp["cp_pot"],
+        t_kinetic_s=inp["t_kinetic_base_s"],
+        P_in_kw=P_in_kw,
+        A_m2=inp["A_m2"],
+        k_conv=k_conv,
+        emissivity=inp["emissivity"],
+        T_amb=T_amb,
+        lid_fac=inp["lid_factor"],
+    )
 
-    while T_pot_est < 100.0 and t_heat_s < MAX_SIMULATION_TIME:
-        T_pot_K = T_pot_est + 273.15
-        P_conv = k_conv * A * (T_pot_K - T_amb_K)
-        P_rad  = EMISSIVITY * SIGMA * A * (T_pot_K**4 - T_amb_K**4)
-        Q_out_kw = (P_conv + P_rad) / 1000.0
-        Q_avail = P_in_kw * dt - Q_out_kw * dt
-
-        if Q_avail <= 0.0:
-            heat_cannot_rise = True
-            break
-
-        Q_to_100 = MCp_total * (100.0 - T_pot_est)
-        if Q_avail <= Q_to_100:
-            T_pot_est += Q_avail / MCp_total
-        else:
-            T_pot_est = 100.0
-
-        t_heat_s += dt
-        Q_out_accum_kw_s += Q_out_kw * dt
-
-    if heat_cannot_rise or T_pot_est < 100.0:
+    t_heat_s = preview["t_heat_s"]
+    if preview["heat_cannot_rise"] > 0.5 or t_heat_s <= 0.0:
         t_heat_s = 0.0
-        Q_out_accum_kw_s = 0.0
         _warn(
             "Stove input power does not exceed heat loss during heat-up; "
             "heat-up time estimate defaulted to 0 s. Total time will rely on "
             "kinetic time only — review pellet/utensil selection."
         )
 
-    Q_out_avg_kw = (Q_out_accum_kw_s / t_heat_s) if t_heat_s > 0.0 else 0.0
+    Q_out_avg_kw = (
+        preview["Q_out_accum_kj"] / preview["t_preview_s"]
+        if preview["t_preview_s"] > 0.0 else 0.0
+    )
 
-    # Post heat-up safety margin (60–120 s) for discrete-step lag and
-    # brief post-boil transients before kinetic simmering stabilises.
-    t_safety_buffer_s = min(120.0, max(60.0, 60.0 + 0.03 * t_heat_s))
-    t_suggested_total_s   = t_heat_s + inp["t_kinetic_base_s"] + t_safety_buffer_s
+    t_safety_buffer_s = compute_safety_buffer_s(t_heat_s, k_conv, m_w)
+    t_core_s = t_heat_s + inp["t_kinetic_base_s"]
+    t_suggested_total_s   = t_core_s + t_safety_buffer_s
     t_suggested_total_min = t_suggested_total_s / 60.0
 
     print(_c(f"\n  Estimated heat-up time     : {t_heat_s/60:.1f} min", DIM))
+    print(_c(f"  Predicted boil time        : {preview['t_boil_s']/60:.1f} min", DIM))
     print(_c(f"  Dish kinetic time (base×n) : {inp['t_kinetic_base_s']/60:.1f} min", DIM))
+    print(_c(f"  Safety buffer              : {t_safety_buffer_s:.0f} s", DIM))
     print(_c(
         f"  Suggested Total Time       : {t_suggested_total_min:.1f} min",
         GRN, BLD
@@ -410,10 +622,13 @@ def collect_inputs() -> dict:
     inp["t_total_min_user"] = t_total_min
 
     # Diagnostics carried into the receipt
-    inp["P_in_kw"]        = P_in_kw
-    inp["MCp_total_init"] = MCp_total
-    inp["Q_out_avg_kw"]   = Q_out_avg_kw
-    inp["t_heat_est_s"]   = t_heat_s
+    inp["P_in_kw"]              = P_in_kw
+    inp["MCp_total_init"]       = MCp_total
+    inp["Q_out_avg_kw"]         = Q_out_avg_kw
+    inp["t_heat_est_s"]         = t_heat_s
+    inp["t_boil_est_s"]         = preview["t_boil_s"]
+    inp["t_safety_buffer_s"]    = t_safety_buffer_s
+    inp["t_preview_s"]          = preview["t_preview_s"]
 
     return inp
 
@@ -458,9 +673,9 @@ def run_1hz_loop(inp: dict) -> dict:
     gcv:      float = inp["gcv_kj_kg"]
     lid_fac:  float = inp["lid_factor"]
     T_amb:    float = inp["t_ambient_c"]
-    T_amb_K:  float = T_amb + 273.15
     t_total_s: float = inp["t_total_s"]
-    k_conv:   float = inp["k_conv_current"]   # NEW v3 — dynamic wind factor
+    k_conv:   float = inp["k_conv_current"]
+    emissivity: float = inp.get("emissivity", EMISSIVITY_DEFAULT)
 
     # Step 2A: Power In — constant for the entire run (high-fan rule)
     P_in_kw: float = (FAN_HIGH / 3600.0) * gcv * eta_geom
@@ -472,6 +687,11 @@ def run_1hz_loop(inp: dict) -> dict:
     flag_over:       bool        = False
     t_boil_reached:  float | None = None
 
+    Q_in_kj = 0.0
+    Q_out_kj = 0.0
+    Q_sensible_kj = 0.0
+    Q_evap_kj = 0.0
+
     log_interval = 60
     tick_log: list = []
     tick = 0
@@ -479,18 +699,17 @@ def run_1hz_loop(inp: dict) -> dict:
     # ── LOOP CONDITION (UPDATED): strictly absolute-time based ────────────────
     while t_elapsed < t_total_s:
 
+        T_before = T_pot
+        m_w_before = m_water
+
         # Step 2A: Power In
         Q_in = P_in_kw * dt
 
         # Step 2B: Dynamic Mass (UNCHANGED)
         MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
 
-        # Step 2C: Heat Bleed (convection term UPDATED to dynamic Wind Factor;
-        #          radiation term UNCHANGED)
-        T_pot_K = T_pot + 273.15
-        P_conv  = k_conv * A * (T_pot_K - T_amb_K)
-        P_rad   = EMISSIVITY * SIGMA * A * (T_pot_K**4 - T_amb_K**4)
-        Q_out   = ((P_conv + P_rad) / 1000.0) * dt
+        # Step 2C: Heat Bleed (shared helper — matches Total Time Estimator)
+        Q_out = heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity) * dt
 
         # Step 2D: Net Energy & State Routing (UNCHANGED — PROTECTED)
         Q_avail = Q_in - Q_out
@@ -530,6 +749,19 @@ def run_1hz_loop(inp: dict) -> dict:
                     T_pot += Q_avail / MCp_dry
                 Q_avail = 0.0
 
+        Q_in_kj  += Q_in
+        Q_out_kj += Q_out
+        dT = T_pot - T_before
+        if dT != 0.0:
+            if m_w_before > 0.0:
+                MCp_track = (m_food * cp_food) + (m_w_before * CP_WATER) + (m_pot * cp_pot)
+            else:
+                MCp_track = (m_food * cp_food) + (m_pot * cp_pot)
+            Q_sensible_kj += MCp_track * dT
+        dm_evap = m_w_before - m_water
+        if dm_evap > 0.0 and lid_fac > 0.0:
+            Q_evap_kj += (dm_evap / lid_fac) * L_V
+
         # ── Advance Clock (UPDATED): no hysteresis gate ────────────────────────
         t_elapsed += dt
 
@@ -564,24 +796,37 @@ def run_1hz_loop(inp: dict) -> dict:
         "t_boil_reached_s": t_boil_reached,
         "tick_log":         tick_log,
         "P_in_kw":          P_in_kw,
+        "Q_in_kj":          Q_in_kj,
+        "Q_out_kj":         Q_out_kj,
+        "Q_sensible_kj":    Q_sensible_kj,
+        "Q_evap_kj":        Q_evap_kj,
     })
     return inp
 
 
 # =============================================================================
-# PHASE 3 — FINAL OUTPUT & DIAGNOSTICS  (UNCHANGED)
+# PHASE 3 — FINAL OUTPUT & DIAGNOSTICS
 # =============================================================================
 
 def post_process(inp: dict) -> dict:
     """
-    §6A: Ultimate fuel output (unchanged formula).
+    §6A: Physics-based fuel output from integrated simulation energy.
     §6C: Academic 3-phase receipt slicing (unchanged 15/65/20 split).
     """
     t_elapsed = inp["t_elapsed_s"]
+    gcv = inp["gcv_kj_kg"]
+    eta_geom = inp["eta_geom"]
 
-    pellets_g = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
+    Q_demand_kj = (
+        inp["Q_sensible_kj"] + inp["Q_evap_kj"] + inp["Q_out_kj"]
+    )
+    fuel_kg = Q_demand_kj / (gcv * eta_geom)
+    pellets_g = fuel_kg * 1000.0 * (1.0 + PELLET_PROCUREMENT_MARGIN)
+
+    inp["Q_demand_kj"]         = Q_demand_kj
     inp["pellets_required_g"]  = pellets_g
     inp["pellets_required_kg"] = pellets_g / 1000.0
+    inp["pellets_time_based_g"] = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
 
     inp["t_phase1_s"] = 0.15 * t_elapsed
     inp["t_phase2_s"] = 0.65 * t_elapsed
@@ -621,7 +866,7 @@ def print_receipt(inp: dict) -> None:
 
     print()
     print(_c("=" * 72, CYN, BLD))
-    print(_c("  IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v3", BLD, WHT))
+    print(_c("  IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v4", BLD, WHT))
     print(_c("=" * 72, CYN, BLD))
     print(_c(f"  Generated : {now_str}", DIM))
     print(_c("  Engine    : 1Hz Discrete Transient Solver  |  Unified Total-Time Loop", DIM))
@@ -639,20 +884,29 @@ def print_receipt(inp: dict) -> None:
     box("Utensil",              inp["utensil_name"])
     box("Vessel mass (used)",   f"{inp['m_pot']:.3f}", "kg")
     box("Vessel Cp (DB)",       f"{inp['cp_pot']:.3f}", "kJ/kg·K")
+    box("Surface emissivity ε", f"{inp.get('emissivity', EMISSIVITY_DEFAULT):.2f}", "")
     box("Lid state",            inp["lid_label"])
     box("Pellet",                pellet.name)
     box("GCV (conservative)",   f"{pellet.conservative_gcv_kj:,.1f}", "kJ/kg")
     div()
 
-    title("TOTAL TIME ESTIMATOR  (new in v2)")
+    title("TOTAL TIME ESTIMATOR  (transient preview)")
     box("Estimated heat-up time",  f"{inp['t_heat_est_s']/60:.1f}", "min")
+    box("Predicted boil time",     f"{inp.get('t_boil_est_s', 0)/60:.1f}", "min")
     box("Dish kinetic base time",  f"{inp['t_kinetic_base_s']/60:.1f}", "min")
-    box("Suggested total",         f"{(inp['t_heat_est_s']+inp['t_kinetic_base_s'])/60:.1f}", "min")
+    t_suggested_min = (
+        inp['t_heat_est_s'] + inp['t_kinetic_base_s'] + inp.get('t_safety_buffer_s', 60)
+    ) / 60.0
+    box("Safety buffer",           f"{inp.get('t_safety_buffer_s', 60):.0f}", "s")
+    box("Suggested total",         f"{t_suggested_min:.1f}", "min")
     box("User-selected total",     f"{inp['t_total_min_user']:.1f}", "min", col=GRN)
-    box("Q_out_avg (at T_avg)",    f"{inp['Q_out_avg_kw']*1000:.2f}", "W")
+    if inp.get("t_boil_reached_s") is not None:
+        est_err = abs(inp["t_boil_reached_s"] - inp.get("t_boil_est_s", 0))
+        box("Boil-time estimator error", f"{est_err:.0f}", "s")
+    box("Q_out_avg (preview)",       f"{inp['Q_out_avg_kw']*1000:.2f}", "W")
     div()
 
-    title("DERIVED GEOMETRY  (cylinder h=d)")
+    title("DERIVED GEOMETRY  (cylinder model)")
     box("Initial food mass",     f"{inp['m_food']*1000:.1f}", "g")
     box("Initial water mass",    f"{inp['m_water_initial']*1000:.1f}", "g")
     box("Vessel surface area A", f"{inp['A_m2']*1e4:.2f}", "cm²")
@@ -678,7 +932,11 @@ def print_receipt(inp: dict) -> None:
     box("Total simulation time", f"{t_el:.0f}", "s")
     box("Total simulation time", f"{t_el_min:.2f}", "min")
     box("Stove power (P_in)",    f"{inp['P_in_kw']:.6f}", "kW")
-    box("Total energy supplied", f"{q_in_total:.2f}", "kJ")
+    box("Energy supplied (Q_in)", f"{inp.get('Q_in_kj', q_in_total):.2f}", "kJ")
+    box("Heat losses (Q_out)",   f"{inp.get('Q_out_kj', 0):.2f}", "kJ")
+    box("Sensible heating",      f"{inp.get('Q_sensible_kj', 0):.2f}", "kJ")
+    box("Evaporation (Q_evap)",  f"{inp.get('Q_evap_kj', 0):.2f}", "kJ")
+    box("Thermodynamic demand",  f"{inp.get('Q_demand_kj', 0):.2f}", "kJ")
     box("Water remaining",       f"{inp['m_water_current']*1000:.1f}", "g")
     div()
 
@@ -715,12 +973,22 @@ def print_receipt(inp: dict) -> None:
     print()
     print(_c("=" * 72, ORG, BLD))
     print(_c("  RECOMMENDED PELLET LOAD", BLD, WHT))
-    print(_c("  Formula:  Pellets = (t_elapsed / 3600) × FAN_HIGH × 1000", DIM))
-    print(_c(f"            Pellets = ({t_el:.0f} / 3600) × {FAN_HIGH} × 1000", DIM))
+    print(_c(
+        "  Formula:  Pellets = (Q_sensible + Q_evap + Q_out) / (GCV × η_geom)",
+        DIM
+    ))
+    print(_c(
+        f"            × {1 + PELLET_PROCUREMENT_MARGIN:.0%} procurement margin",
+        DIM
+    ))
     print(_c("  " + "─" * 60, ORG))
     print(_c(f"  ►  {mass_str:<20} ◄", ORG, BLD) + _c(f"  [{pellet.name}]", DIM))
     print(_c("  " + "─" * 60, ORG))
-    print(_c("  ► Add ≥ 10% safety margin for real-world procurement.", DIM))
+    print(_c(
+        f"  ►  Time-based reference: {inp.get('pellets_time_based_g', 0):.1f} g  "
+        f"(HIGH FAN {FAN_HIGH} kg/hr × {t_el/3600:.3f} h)",
+        DIM
+    ))
     print(_c("  ► Simulation used HIGH FAN (0.78 kg/hr) throughout — conservative.", DIM))
     print(_c("=" * 72, ORG, BLD))
     print()
