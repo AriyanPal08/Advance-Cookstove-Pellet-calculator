@@ -1,43 +1,49 @@
 """
 main_logic.py
-1Hz Discrete Transient Biomass Cookstove Simulator  — Version 2
+1Hz Discrete Transient Biomass Cookstove Simulator  — Version 3
 IIT Delhi · Department of Energy Studies
 
 =============================================================================
-CHANGE LOG  v1 → v2
+CHANGE LOG  v2 → v3
 =============================================================================
-1. UTENSIL DATABASE (NEW)
-   Manual vessel mass/Cp input removed. Replaced with a silent lookup into
-   utensil_db.py. User selects a vessel name; m_pot and Cp_pot are assigned
-   automatically from the Utensil record.
+1. WIND FACTOR / DYNAMIC CONVECTION COEFFICIENT (NEW)
+   K_CONV_STILL_AIR removed from the top-level immovable constants. It is
+   replaced by inp["k_conv_current"], set once per session from a 4-option
+   menu (Indoors/Still Air, Outdoors Low/Medium/High Wind). This value is
+   then used everywhere the convection coefficient previously appeared:
+   both in the Total Time Estimator's average heat-bleed calculation and
+   in the live 1Hz loop's Step 2C convection term. No other physics term
+   is touched — this is a single coefficient substitution.
 
-2. TOTAL TIME ESTIMATOR (NEW)
-   Replaces the old "kinetic time" prompt with a single unified
-   "Total Cooking Time" prompt. The suggested value is derived by estimating
-   a heat-up time (from average heat-bleed power at T_avg = (T_amb+100)/2)
-   and adding the dish's base kinetic time (scaled by portions). The user
-   may accept the suggestion or override it. This Total Time becomes the
-   sole loop-termination criterion — no separate "simmer timer" exists.
+2. VESSEL MASS OVERRIDE (NEW)
+   The utensil selection step still performs a silent DB lookup for
+   cp_pot, but m_pot is now an editable field: the database default mass
+   is shown, and the user may press Enter to accept it or type a precise
+   override value. inp["m_pot"] holds whichever value is used downstream.
 
-3. LOOP CONDITION (UPDATED)
-   t_kinetic_remaining and the 99°C hysteresis gate are REMOVED.
-   The loop now runs strictly while t_elapsed < inp["t_total_s"].
-   A MAX_SIMULATION_TIME safety break is added to prevent infinite loops.
+3. TOTAL TIME ESTIMATOR (UPDATED — convection term only)
+   P_conv_avg now reads inp["k_conv_current"] instead of the removed
+   K_CONV_STILL_AIR constant. Every other term (P_rad_avg, MCp_total,
+   t_heat_s, t_suggested_total_s) is identical in formula to v2.
 
-4. PHYSICS CASCADE (UNCHANGED — PROTECTED)
-   Steps 2A–2D (Power In, Dynamic Mass, Heat Bleed, Net Energy Routing) are
-   byte-for-byte identical to the version already verified against the PRD:
-   Route A (cooling), Route B (sensible heating to 100°C), Route B2
-   (evaporation), Route B3 (dry-boil runaway). No formula in this cascade
-   has been altered.
+4. 1Hz LOOP — STEP 2C (UPDATED — convection term only)
+   P_conv reads inp["k_conv_current"] instead of K_CONV_STILL_AIR.
+   Step 2D (Net Energy & State Routing — Routes A, B, B2/B3) is
+   BYTE-FOR-BYTE UNCHANGED from v2. No route, threshold, or formula in
+   the energy-routing cascade has been touched.
 
-5. OUTPUTS (UNCHANGED)
-   §6A fuel formula, §6B safety diagnostics, §6C 3-phase receipt are
-   identical to the prior version.
+5. RECEIPT (UPDATED)
+   The chosen Wind Factor / environment label and its k_conv value are
+   added to the "SIMULATION INPUTS" section of the printed receipt.
+
+Everything else (dish/food_db lookups, pellet_db lookups, lid factor,
+geometry reverse-engineering, loop termination condition, MAX_SIMULATION_TIME
+safety break, §6A/§6B/§6C outputs) is unchanged from v2.
 
 Core Directive (unchanged): The stove runs at constant FAN_HIGH (0.78 kg/hr)
-for the entire simulation. No PID controllers, no dynamic efficiency
-penalties, no variable fan speed are introduced anywhere in this file.
+for the entire simulation. No PID controllers, no random wind gusts, no
+dynamic efficiency penalties, no variable fan speed are introduced anywhere
+in this file.
 
 =============================================================================
 SOURCES
@@ -45,6 +51,9 @@ SOURCES
 [1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
 [2] NIST WebBook — Aluminium thermophysical properties.
 [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7th ed.
+    [Table 7.x: representative convection coefficients used for the wind
+    factor tiers — still air ≈10 W/m²K; low/medium/high forced convection
+    ranges ≈20-50 W/m²K for cylinders in cross-flow.]
 [4] WBT v4.2.3 (2017). Clean Cooking Alliance. [Lid factor reference]
 [5] Choi & Okos (1986); ICMR-NIN (2017). [food_db.py Cp_food sourcing]
 """
@@ -66,14 +75,26 @@ from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil
 
 FAN_HIGH:    float = 0.78     # kg/hr  — high-fan mechanical feed rate
 MAX_EFFICIENCY: float = 0.45  # —       maximum combustion efficiency
-K_CONV_STILL_AIR: float = 10.0  # W/m²·K — convective heat transfer coefficient
 L_V:         float = 2257.0   # kJ/kg  — latent heat of vaporisation at 100°C
 SIGMA:       float = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
 dt:          float = 1.0      # s      — simulation time step (1 Hz)
 EMISSIVITY:  float = 0.3      # —       vessel surface emissivity
+# Note: K_CONV_STILL_AIR is REMOVED from the hardcoded constants in v3.
+# It is now set dynamically per-session as inp["k_conv_current"] from the
+# Wind Factor menu below (still air = 10.0 W/m²K is preserved as option [1]).
 
 # Additional sourced constants
 CP_WATER:    float = 4.184    # kJ/kg·K — specific heat of water (NIST, ~60°C)
+
+# Wind Factor tiers — convection coefficient h (W/m²·K)  [source: 3]
+# Selected once per session into inp["k_conv_current"]; used in both the
+# Total Time Estimator and the live 1Hz loop's Step 2C convection term.
+WIND_TIERS: dict[str, float] = {
+    "Indoors / Still Air":        10.0,
+    "Outdoors (Low Wind)":        20.0,
+    "Outdoors (Medium Wind)":     35.0,
+    "Outdoors (High Wind)":       50.0,
+}
 
 # Safety thresholds
 T_OVERHEAT_C: float = 150.0   # °C — critical vessel overheat threshold
@@ -183,12 +204,12 @@ def collect_inputs() -> dict:
     Phase 1: collect dish, utensil, pellet, ambient temperature, and the
     unified Total Cooking Time (via the new Total Time Estimator).
     """
-    _hdr("IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v2")
+    _hdr("IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v3")
     inp: dict = {}
 
     # ── Step 1: Dish selection ────────────────────────────────────────────────
     dish_names = get_dish_names()
-    _sec("Step 1 / 6  —  Dish Selection")
+    _sec("Step 1 / 7  —  Dish Selection")
     for i, name in enumerate(dish_names, 1):
         d = FOOD_DB[name]
         print(_c(f"    [{i:>2}]  {name:<42}  {d.category}", WHT))
@@ -210,13 +231,13 @@ def collect_inputs() -> dict:
 
     # ── Step 2: Portions / water volume ───────────────────────────────────────
     if dish.variable_water:
-        _sec("Step 2 / 6  —  Water Volume")
+        _sec("Step 2 / 7  —  Water Volume")
         inp["water_liters"] = _prompt_float(
             "Total water to boil (Litres)", default=5.0, lo=0.0, hi=200.0
         )
         inp["portions"] = 1
     else:
-        _sec("Step 2 / 6  —  Number of People / Servings")
+        _sec("Step 2 / 7  —  Number of People / Servings")
         inp["portions"] = _prompt_int("Number of people", default=2)
 
     n: int = inp["portions"]
@@ -235,14 +256,23 @@ def collect_inputs() -> dict:
         inp["t_kinetic_base_s"] = float(dish.phases.total_s)
 
     # ── Step 3: Ambient temperature ───────────────────────────────────────────
-    _sec("Step 3 / 6  —  Ambient Temperature")
+    _sec("Step 3 / 7  —  Ambient Temperature")
     inp["t_ambient_c"] = _prompt_float(
         "Ambient temperature (°C)", default=25.0, lo=-10.0, hi=50.0
     )
 
+    # ── Step 3b: Wind Factor  (NEW — replaces static K_CONV_STILL_AIR) ───────
+    wind_labels = list(WIND_TIERS.keys())
+    wind_idx = _menu("Wind Factor / Cooking Environment", wind_labels)
+    inp["wind_label"]      = wind_labels[wind_idx]
+    inp["k_conv_current"]  = WIND_TIERS[inp["wind_label"]]
+    print(_c(
+        f"  k_conv_current = {inp['k_conv_current']:.1f} W/m²·K", DIM
+    ))
+
     # ── Step 4: Pellet selection ──────────────────────────────────────────────
     pellet_names = get_pellet_names()
-    _sec("Step 4 / 6  —  Pellet Type")
+    _sec("Step 4 / 7  —  Pellet Type")
     for i, name in enumerate(pellet_names, 1):
         p = PELLET_DB[name]
         print(_c(
@@ -267,14 +297,22 @@ def collect_inputs() -> dict:
     pellet: PelletType = inp["pellet"]
     inp["gcv_kj_kg"] = pellet.conservative_gcv_kj
 
-    # ── Step 5: Utensil selection  (NEW — silent DB lookup, no manual entry) ──
+    # ── Step 5: Utensil selection  (silent Cp lookup + mass OVERRIDE) ────────
     utensil_names = get_utensil_names()
-    u_idx = _menu("Step 5 / 6  —  Utensil Selection", utensil_names)
+    u_idx = _menu("Step 5 / 7  —  Utensil Selection", utensil_names)
     utensil: Utensil = get_utensil(utensil_names[u_idx])
     inp["utensil_name"] = utensil.name
-    inp["m_pot"]         = utensil.mass_kg     # silent assignment
-    inp["cp_pot"]        = utensil.cp_kj_kgk   # silent assignment
+    inp["cp_pot"]        = utensil.cp_kj_kgk   # silent assignment (unchanged)
     inp["is_pc"]         = utensil.is_pressure
+
+    # ── Vessel Mass Override  (NEW) ───────────────────────────────────────────
+    # Database default mass is shown; user may accept it or type a precise
+    # measured value for their actual vessel.
+    inp["m_pot"] = _prompt_float(
+        f"Press Enter to accept [{utensil.mass_kg}] kg, "
+        f"or type a precise vessel mass (kg)",
+        default=utensil.mass_kg, lo=0.0, hi=50.0
+    )
 
     # ── Lid state ──────────────────────────────────────────────────────────────
     if inp["is_pc"]:
@@ -297,8 +335,8 @@ def collect_inputs() -> dict:
     eta_geom = MAX_EFFICIENCY * max(0.25, min(1.0, math.sqrt(m_w / 5.0)))
     inp.update({"V_m3": V_m3, "d_m": d, "A_m2": A, "eta_geom": eta_geom})
 
-    # ── Step 6: Total Time Estimator  (NEW) ───────────────────────────────────
-    _sec("Step 6 / 6  —  Total Cooking Time (Heating + Simmering)")
+    # ── Step 7: Total Time Estimator  (convection term now dynamic) ──────────
+    _sec("Step 7 / 7  —  Total Cooking Time (Heating + Simmering)")
 
     P_in_kw = (FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
     MCp_total = (inp["m_food"] * inp["cp_food"]
@@ -309,7 +347,9 @@ def collect_inputs() -> dict:
     T_avg = (T_amb + 100.0) / 2.0
     T_avg_K = T_avg + 273.15
     T_amb_K = T_amb + 273.15
-    P_conv_avg = K_CONV_STILL_AIR * A * (T_avg_K - T_amb_K)
+    # Convection term now uses the dynamic Wind Factor coefficient (NEW v3)
+    # in place of the removed static K_CONV_STILL_AIR constant.
+    P_conv_avg = inp["k_conv_current"] * A * (T_avg_K - T_amb_K)
     P_rad_avg  = EMISSIVITY * SIGMA * A * (T_avg_K**4 - T_amb_K**4)
     Q_out_avg_kw = (P_conv_avg + P_rad_avg) / 1000.0
 
@@ -397,6 +437,7 @@ def run_1hz_loop(inp: dict) -> dict:
     T_amb:    float = inp["t_ambient_c"]
     T_amb_K:  float = T_amb + 273.15
     t_total_s: float = inp["t_total_s"]
+    k_conv:   float = inp["k_conv_current"]   # NEW v3 — dynamic wind factor
 
     # Step 2A: Power In — constant for the entire run (high-fan rule)
     P_in_kw: float = (FAN_HIGH / 3600.0) * gcv * eta_geom
@@ -421,9 +462,10 @@ def run_1hz_loop(inp: dict) -> dict:
         # Step 2B: Dynamic Mass (UNCHANGED)
         MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
 
-        # Step 2C: Heat Bleed (UNCHANGED)
+        # Step 2C: Heat Bleed (convection term UPDATED to dynamic Wind Factor;
+        #          radiation term UNCHANGED)
         T_pot_K = T_pot + 273.15
-        P_conv  = K_CONV_STILL_AIR * A * (T_pot_K - T_amb_K)
+        P_conv  = k_conv * A * (T_pot_K - T_amb_K)
         P_rad   = EMISSIVITY * SIGMA * A * (T_pot_K**4 - T_amb_K**4)
         Q_out   = ((P_conv + P_rad) / 1000.0) * dt
 
@@ -556,7 +598,7 @@ def print_receipt(inp: dict) -> None:
 
     print()
     print(_c("=" * 72, CYN, BLD))
-    print(_c("  IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v2", BLD, WHT))
+    print(_c("  IIT DELHI  |  1Hz Transient Biomass Cookstove Simulator  |  v3", BLD, WHT))
     print(_c("=" * 72, CYN, BLD))
     print(_c(f"  Generated : {now_str}", DIM))
     print(_c("  Engine    : 1Hz Discrete Transient Solver  |  Unified Total-Time Loop", DIM))
@@ -569,8 +611,10 @@ def print_receipt(inp: dict) -> None:
     else:
         box("Portions",         str(inp["portions"]), "serving(s)")
     box("Ambient temperature",  f"{inp['t_ambient_c']:.1f}", "°C")
+    box("Wind Factor",          inp["wind_label"])
+    box("k_conv_current",       f"{inp['k_conv_current']:.1f}", "W/m²·K")
     box("Utensil",              inp["utensil_name"])
-    box("Vessel mass (DB)",     f"{inp['m_pot']:.3f}", "kg")
+    box("Vessel mass (used)",   f"{inp['m_pot']:.3f}", "kg")
     box("Vessel Cp (DB)",       f"{inp['cp_pot']:.3f}", "kJ/kg·K")
     box("Lid state",            inp["lid_label"])
     box("Pellet",                pellet.name)
