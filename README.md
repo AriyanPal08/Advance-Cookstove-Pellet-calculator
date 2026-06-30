@@ -4,7 +4,7 @@ A high-fidelity thermodynamic modeling tool developed at IIT Delhi (Department o
 
 Moving beyond standard static energy balances, this simulator utilizes a 1Hz Discrete Transient State Machine to calculate second-by-second energy routing, accounting for real-world environmental wind, vessel materials, pressure cooker dynamics, and precise culinary kinetics.
 
-⚙️ Core Architecture & Workflow
+# Core Architecture & Workflow
 
 The simulator operates in three distinct computational phases to eliminate human input error and mathematically protect the conservation of energy.
 
@@ -42,7 +42,7 @@ Phase 3: Post-Processing & Output
 
 The system generates a comprehensive diagnostic receipt, slicing the elapsed time into an academic 3-Phase Combustion Model (15% Ignition, 65% Steady State, 20% Radiant Char) and calculating the final physical pellet requirement using the Safe Overestimate Rule.
 
-🧮 Mathematical Formulas & Constants
+# Mathematical Formulas & Constants
 
 1. Convective & Radiative Heat Bleed ($Q_{out}$)
 
