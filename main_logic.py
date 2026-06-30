@@ -162,7 +162,7 @@ def compute_vessel_geometry(
     A_top  = math.pi * r_m ** 2
     top_exposure = 0.30 if lid_factor <= LID_FACTOR_ON else 0.85
     A_m2 = surface_mult * (A_side + top_exposure * A_top)
-    eta_geom = MAX_EFFICIENCY * max(0.25, min(1.0, math.sqrt(m_water_kg / 5.0)))
+    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
     return {"V_m3": V_m3, "d_m": d_m, "h_m": h_m, "A_m2": A_m2, "eta_geom": eta_geom}
 
 
@@ -172,11 +172,13 @@ def heat_loss_w(
     A_m2: float,
     k_conv: float,
     emissivity: float,
+    lid_factor: float = LID_FACTOR_OFF,
 ) -> float:
     """Total convective + radiative heat bleed (W). Used by estimator and loop."""
     T_pot_K = T_pot_c + 273.15
     T_amb_K = T_amb_c + 273.15
-    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K)
+    conv_factor = 0.85 + 0.15 * lid_factor
+    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K) * conv_factor
     P_rad  = emissivity * SIGMA * A_m2 * (T_pot_K ** 4 - T_amb_K ** 4)
     return P_conv + P_rad
 
@@ -187,9 +189,10 @@ def heat_loss_kw(
     A_m2: float,
     k_conv: float,
     emissivity: float,
+    lid_factor: float = LID_FACTOR_OFF,
 ) -> float:
     """Heat bleed in kW (convenience wrapper)."""
-    return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity) / 1000.0
+    return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity, lid_factor) / 1000.0
 
 
 def compute_safety_buffer_s(
@@ -234,7 +237,7 @@ def _transient_preview_tick(
     """
     Q_in  = P_in_kw * dt
     MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
-    Q_out = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity) * dt
+    Q_out = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity, lid_fac) * dt
     Q_avail = Q_in - Q_out
 
     if Q_avail <= 0.0:
@@ -709,7 +712,7 @@ def run_1hz_loop(inp: dict) -> dict:
         MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
 
         # Step 2C: Heat Bleed (shared helper — matches Total Time Estimator)
-        Q_out = heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity) * dt
+        Q_out = heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity, lid_fac) * dt
 
         # Step 2D: Net Energy & State Routing (UNCHANGED — PROTECTED)
         Q_avail = Q_in - Q_out
@@ -817,15 +820,17 @@ def post_process(inp: dict) -> dict:
     gcv = inp["gcv_kj_kg"]
     eta_geom = inp["eta_geom"]
 
+    # Calculate energy demand for the receipt, but DO NOT use it for the final pellets!
     Q_demand_kj = (
         inp["Q_sensible_kj"] + inp["Q_evap_kj"] + inp["Q_out_kj"]
     )
-    fuel_kg = Q_demand_kj / (gcv * eta_geom)
-    pellets_g = fuel_kg * 1000.0 * (1.0 + PELLET_PROCUREMENT_MARGIN)
+    
+    # REVERT TO THE SAFE OVERESTIMATE RULE
+    pellets_time_g = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
 
     inp["Q_demand_kj"]         = Q_demand_kj
-    inp["pellets_required_g"]  = pellets_g
-    inp["pellets_required_kg"] = pellets_g / 1000.0
+    inp["pellets_required_g"]  = pellets_time_g
+    inp["pellets_required_kg"] = pellets_time_g / 1000.0
     inp["pellets_time_based_g"] = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
 
     inp["t_phase1_s"] = 0.15 * t_elapsed
@@ -974,11 +979,7 @@ def print_receipt(inp: dict) -> None:
     print(_c("=" * 72, ORG, BLD))
     print(_c("  RECOMMENDED PELLET LOAD", BLD, WHT))
     print(_c(
-        "  Formula:  Pellets = (Q_sensible + Q_evap + Q_out) / (GCV × η_geom)",
-        DIM
-    ))
-    print(_c(
-        f"            × {1 + PELLET_PROCUREMENT_MARGIN:.0%} procurement margin",
+        "  Formula:  (t_elapsed / 3600) × FAN_HIGH × 1000",
         DIM
     ))
     print(_c("  " + "─" * 60, ORG))
