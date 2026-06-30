@@ -344,7 +344,7 @@ def collect_inputs() -> dict:
                  + inp["m_pot"] * inp["cp_pot"])
 
     T_amb = inp["t_ambient_c"]
-    T_avg = (T_amb + 100.0) / 2.0
+    T_avg = (T_amb * 0.4) + (100.0 * 0.6)
     T_avg_K = T_avg + 273.15
     T_amb_K = T_amb + 273.15
     # Convection term now uses the dynamic Wind Factor coefficient (NEW v3)
@@ -368,7 +368,7 @@ def collect_inputs() -> dict:
             "kinetic time only — review pellet/utensil selection."
         )
 
-    t_suggested_total_s   = t_heat_s + inp["t_kinetic_base_s"]
+    t_suggested_total_s   = t_heat_s + inp["t_kinetic_base_s"] + 90.0
     t_suggested_total_min = t_suggested_total_s / 60.0
 
     print(_c(f"\n  Estimated heat-up time     : {t_heat_s/60:.1f} min", DIM))
