@@ -94,6 +94,11 @@ class LegacyPhaseDurations:
     boiling_s: int = 0
     simmering_s: int = 0
 
+    @property
+    def total_s(self) -> int:
+        """Total cooking duration across all legacy phase buckets."""
+        return self.frying_s + self.boiling_s + self.simmering_s
+
 
 @dataclass(frozen=True)
 class DishProfile:
