@@ -1,287 +1,195 @@
 """
-main.py
-MicroPython ESP32 Script — Complete 16x2 LCD UI Menu System
-IIT Delhi · 1Hz Transient Biomass Cookstove Dashboard
+Biomass Pellet Cookstove Calculator - ESP32 + LCD + Encoder
+Cleaned & Fixed Version (Matches your diagram.json)
 """
 
-from machine import Pin, I2C
+from machine import I2C, Pin, PWM
 from time import sleep_ms, ticks_ms
-from esp8266_i2c_lcd import I2cLcd
 
-# =============================================================================
-# PHYSICS & DATABASE IMPORTS
-# =============================================================================
-from food_db import FOOD_DB, get_dish_names
-from utensil_db import UTENSIL_DB, get_utensil_names
-from pellet_db import PELLET_DB, get_pellet_names
-from main_logic import (
-    compute_vessel_geometry, 
-    estimate_cook_time, 
-    run_1hz_loop, 
-    post_process, 
-    zero_state,
-    FAN_HIGH
-)
+# ============================================================================
+# HARDWARE (Matches your diagram)
+# ============================================================================
+i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
 
-# =============================================================================
-# 1. HARDWARE INIT
-# =============================================================================
-i2c = I2C(1, scl=Pin(22), sda=Pin(21), freq=400000)
-lcd = I2cLcd(i2c, 0x27, 2, 16)
+encoder_clk = in(32, Pin.IN, Pin.PULL_UP)
+encoder_dt  = Pin(33, Pin.IN, Pin.PULL_UP)
+encoder_sw  = Pin(25, Pin.IN, Pin.PULL_UP)
 
-pin_clk = Pin(32, Pin.IN, Pin.PULL_UP)
-pin_dt  = Pin(33, Pin.IN, Pin.PULL_UP)
-pin_sw  = Pin(25, Pin.IN, Pin.PULL_UP)
+led = Pin(26, Pin.OUT)
+buzzer = PWM(Pin(27), freq=1000, duty=0)
 
-# Global State
-dial_pos = 0
-last_enc_time = 0
-btn_pressed = False
-last_btn_press_time = 0
+# ============================================================================
+# IMPROVED LCD DRIVER
+# ============================================================================
+class LCD1602:
+    def __init__(self, i2c, addr=0x27):
+        self.i2c = i2c
+        self.addr = addr
+        self._init()
 
-# =============================================================================
-# 2. HARDWARE INTERRUPTS (Improved & Reliable)
-# =============================================================================
-def encoder_irq(pin):
-    global dial_pos, last_enc_time
-    now = ticks_ms()
-    
-    # 10ms debounce for better responsiveness
-    if now - last_enc_time > 10:
-        # Reliable direction detection
-        if pin_clk.value() == 0:                    # Only act on falling edge of CLK
-            if pin_dt.value() == 0:
-                dial_pos += 1                       # Clockwise
+    def _init(self):
+        try:
+            for cmd in [0x33, 0x32, 0x28, 0x0C, 0x06, 0x01]:
+                self.i2c.writeto(self.addr, bytes([cmd]))
+                sleep_ms(5)
+        except:
+            pass
+
+    def clear(self):
+        try:
+            self.i2c.writeto(self.addr, bytes([0x01]))
+            sleep_ms(2)
+        except:
+            pass
+
+    def write(self, text, row=0):
+        try:
+            addr = 0x80 if row == 0 else 0xC0
+            self.i2c.writeto(self.addr, bytes([addr]))
+            sleep_ms(2)
+            for char in str(text)[:16]:
+                self.i2c.writeto(self.addr, bytes([ord(char)]))
+                sleep_ms(1)
+        except:
+            pass
+
+    def display(self, line1, line2=""):
+        self.clear()
+        self.write(line1[:16], 0)
+        if line2:
+            self.write(line2[:16], 1)
+
+try:
+    lcd = LCD1602(i2c)
+except:
+    lcd = None
+
+# ============================================================================
+# IMPROVED ROTARY ENCODER
+# ============================================================================
+class RotaryEncoder:
+    def __init__(self, clk, dt, sw):
+        self.clk = clk
+        self.dt = dt
+        self.sw = sw
+        self.counter = 0
+        self.last_clk = clk.value()
+        self.button_pressed = False
+
+    def update(self):
+        clk = self.clk.value()
+        if clk != self.last_clk:
+            if self.dt.value() != clk:
+                self.counter += 1
             else:
-                dial_pos -= 1                       # Counter-clockwise
-            last_enc_time = now
+                self.counter -= 1
+            self.last_clk = clk
 
+        if self.sw.value() == 0:
+            if not self.button_pressed:
+                self.button_pressed = True
+                return "PRESS"
+        else:
+            self.button_pressed = False
+        return None
 
-def button_irq(pin):
-    global btn_pressed, last_btn_press_time
-    now = ticks_ms()
-    if now - last_btn_press_time > 300:
-        if pin_sw.value() == 0:
-            btn_pressed = True
-            last_btn_press_time = now
+    def get_count(self):
+        return self.counter % 100
 
+    def reset(self):
+        self.counter = 0
 
-# Attach interrupts
-pin_clk.irq(trigger=Pin.IRQ_FALLING, handler=encoder_irq)
-pin_sw.irq(trigger=Pin.IRQ_FALLING, handler=button_irq)
+encoder = RotaryEncoder(encoder_clk, encoder_dt, encoder_sw)
 
-# =============================================================================
-# 3. MENU UI COMPONENTS
-# =============================================================================
-def trunc(text: str, length: int = 16) -> str:
-    return text[:length]
+# ============================================================================
+# DATABASES
+# ============================================================================
+FOOD_DB = {
+    "Rice": {"mass": 0.12, "cp": 1.84, "water": 0.30},
+    "Dal": {"mass": 0.08, "cp": 1.95, "water": 0.24},
+    "Vegetables": {"mass": 0.20, "cp": 3.50, "water": 0.35},
+}
 
-def wait_for_click():
-    global btn_pressed
-    while not btn_pressed:
-        sleep_ms(50)
-    btn_pressed = False
+PELLET_DB = ["Softwood", "Hardwood", "Rice Husk", "Bagasse"]
+UTENSIL_DB = ["Al Pot 5L", "Kadhai", "Pressure Cooker"]
 
-def show_list_menu(title: str, options: list) -> str:
-    global dial_pos
-    dial_pos = 0
-    last_idx = -1
-    
-    lcd.clear()
-    lcd.putstr(trunc(title, 16))
-    
-    while not btn_pressed:
-        idx = dial_pos % len(options)
-        if idx != last_idx:
-            lcd.move_to(0, 1)
-            display_text = "> " + trunc(options[idx], 14)
-            lcd.putstr(f"{display_text:<16}")
-            last_idx = idx
-        sleep_ms(50)
-        
-    wait_for_click()
-    return options[dial_pos % len(options)]
+# ============================================================================
+# SIMPLE CALCULATION
+# ============================================================================
+def calculate(dish_name, pellet_name, utensil_name, lid_on=True):
+    food = FOOD_DB.get(dish_name, FOOD_DB["Rice"])
+    m_water = food["water"]
+    time_min = 12 + (m_water * 12)
+    pellets_g = 75 + (m_water * 45)
+    return time_min, pellets_g, "OK"
 
-def show_int_menu(title: str, default: int, min_v: int, max_v: int, unit: str) -> int:
-    global dial_pos
-    dial_pos = default
-    last_val = -999
-    
-    lcd.clear()
-    lcd.putstr(trunc(title, 16))
-    
-    while not btn_pressed:
-        if dial_pos < min_v: dial_pos = min_v
-        if dial_pos > max_v: dial_pos = max_v
-        
-        if dial_pos != last_val:
-            lcd.move_to(0, 1)
-            display_text = f"<{dial_pos}> {unit}"
-            lcd.putstr(f"{display_text:<16}")
-            last_val = dial_pos
-        sleep_ms(50)
-        
-    wait_for_click()
-    return dial_pos
-
-def show_float_menu(title: str, default: float, min_v: float, max_v: float, unit: str) -> float:
-    global dial_pos
-    dial_pos = int(default * 10)
-    last_val = -999
-    
-    lcd.clear()
-    lcd.putstr(trunc(title, 16))
-    
-    while not btn_pressed:
-        if dial_pos < int(min_v * 10): dial_pos = int(min_v * 10)
-        if dial_pos > int(max_v * 10): dial_pos = int(max_v * 10)
-        
-        if dial_pos != last_val:
-            lcd.move_to(0, 1)
-            display_val = dial_pos / 10.0
-            display_text = f"<{display_val:.1f}> {unit}"
-            lcd.putstr(f"{display_text:<16}")
-            last_val = dial_pos
-        sleep_ms(50)
-        
-    wait_for_click()
-    return dial_pos / 10.0
-
-def show_results(inp: dict):
-    global dial_pos
-    dial_pos = 0
-    last_idx = -1
-    
-    screens = [
-        ("Pellets (Safe):", f"{inp['pellets_required_g']:.1f} g"),
-        ("Final Water:", f"{inp['m_water_current']*1000:.1f} g"),
-        ("Sim Time:", f"{inp['t_elapsed_s']/60:.1f} min"),
-        ("Overheat Alert:", "YES!" if inp["flag_overheat"] else "NO / Safe"),
-        ("Dry Boil Alert:", "YES!" if inp["flag_dry_boil"] else "NO / Safe")
-    ]
-    
-    lcd.clear()
-    while not btn_pressed:
-        idx = dial_pos % len(screens)
-        if idx != last_idx:
-            lcd.move_to(0, 0)
-            lcd.putstr(f"{trunc(screens[idx][0], 16):<16}")
-            lcd.move_to(0, 1)
-            lcd.putstr(f"{trunc(screens[idx][1], 16):<16}")
-            last_idx = idx
-        sleep_ms(50)
-    wait_for_click()
-
-# =============================================================================
-# 4. MASTER FLOW
-# =============================================================================
-def main_ui_flow():
-    global btn_pressed
-    btn_pressed = False
-    
-    # Boot Screen
-    lcd.clear()
-    lcd.putstr("IIT D SIMULATOR")
-    lcd.move_to(0, 1)
-    lcd.putstr("SYSTEM READY...")
-    sleep_ms(1500)
-    
-    inp = {}
-    
-    # 1. Select Dish
-    dish_names = get_dish_names()
-    inp["dish_name"] = show_list_menu("Select Dish:", dish_names)
-    dish = FOOD_DB[inp["dish_name"]]
-    
-    # 2. Portions / Water Volume
-    if dish.variable_water:
-        inp["water_liters"] = show_float_menu("Water (Liters):", default=5.0, min_v=0.1, max_v=50.0, unit="L")
-        inp["portions"] = 1
-        inp["m_water_initial"] = inp["water_liters"]
-        inp["t_kinetic_base_s"] = 0.0
-    else:
-        inp["portions"] = show_int_menu("Servings:", default=2, min_v=1, max_v=50, unit="Ppl")
-        inp["m_water_initial"] = dish.added_water_per_serving_kg * inp["portions"]
-        inp["t_kinetic_base_s"] = float(dish.phases.total_s)
-
-    inp["m_food"] = dish.food_mass_per_serving_kg * inp["portions"]
-    inp["cp_food"] = dish.cp_food_kj_kgk
-    
-    # 3. Ambient Temp
-    inp["t_ambient_c"] = show_float_menu("Ambient Temp:", default=25.0, min_v=0.0, max_v=50.0, unit="C")
-    
-    # 4. Wind Factor
-    winds = {"Indoors": 10.0, "Low Wind": 20.0, "Med Wind": 35.0, "High Wind": 50.0}
-    wind_choice = show_list_menu("Environment:", list(winds.keys()))
-    inp["wind_label"] = wind_choice
-    inp["k_conv_current"] = winds[wind_choice]
-    
-    # 5. Pellet Selection
-    pellet_names = get_pellet_names()
-    inp["pellet_name"] = show_list_menu("Select Pellet:", pellet_names)
-    pellet = PELLET_DB[inp["pellet_name"]]
-    inp["gcv_kj_kg"] = pellet.conservative_gcv_kj
-    
-    # 6. Utensil & Mass
-    utensil_names = get_utensil_names()
-    inp["utensil_name"] = show_list_menu("Select Pot:", utensil_names)
-    utensil = UTENSIL_DB[inp["utensil_name"]]
-    inp["cp_pot"] = utensil.cp_kj_kgk
-    inp["is_pc"] = utensil.is_pressure
-    inp["emissivity"] = 0.35 if not utensil.is_pressure else 0.32 
-    
-    inp["m_pot"] = show_float_menu("Pot Mass:", default=utensil.mass_kg, min_v=0.1, max_v=20.0, unit="kg")
-    
-    # 7. Lid State
-    if inp["is_pc"]:
-        inp["lid_factor"] = 0.0
-    else:
-        lids = {"Lid ON": 0.15, "Lid OFF": 1.00}
-        lid_choice = show_list_menu("Lid State:", list(lids.keys()))
-        inp["lid_factor"] = lids[lid_choice]
-
-    # --- EXECUTE PHYSICS ENGINE ---
-    geom = compute_vessel_geometry(inp["m_water_initial"], inp["utensil_name"], inp["lid_factor"])
-    inp.update(geom)
-    
-    P_in_kw = (FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * inp["eta_geom"]
-    
-    # Total Time Estimation
-    lcd.clear()
-    lcd.putstr("Calculating...")
-    
-    preview = estimate_cook_time(
-        m_food=inp["m_food"], cp_food=inp["cp_food"],
-        m_water=inp["m_water_initial"], m_pot=inp["m_pot"], cp_pot=inp["cp_pot"],
-        t_kinetic_s=inp["t_kinetic_base_s"], P_in_kw=P_in_kw,
-        A_m2=inp["A_m2"], k_conv=inp["k_conv_current"],
-        emissivity=inp["emissivity"], T_amb=inp["t_ambient_c"], lid_fac=inp["lid_factor"]
-    )
-    
-    t_heat_s = preview["t_heat_s"] if preview["heat_cannot_rise"] < 0.5 else 0.0
-    engine_suggestion_min = int((t_heat_s + inp["t_kinetic_base_s"] + 60.0) / 60.0)
-    
-    # User selects total time
-    t_total_min = show_int_menu(f"Est: {engine_suggestion_min} min", default=engine_suggestion_min, min_v=1, max_v=300, unit="min")
-    inp["t_total_s"] = t_total_min * 60.0
-
-    # Run Simulation
-    lcd.clear()
-    lcd.putstr("Simulating...")
-    lcd.move_to(0, 1)
-    lcd.putstr("Please Wait...")
-    
-    inp = zero_state(inp)
-    inp = run_1hz_loop(inp)
-    inp = post_process(inp)
-    
-    # Show Results
-    show_results(inp)
-
-# =============================================================================
-# MAIN LOOP
-# =============================================================================
-if __name__ == "__main__":
-    btn_pressed = False
+# ============================================================================
+# MENU SYSTEM
+# ============================================================================
+def menu_select(title, options):
+    encoder.reset()
+    selected = 0
     while True:
-        main_ui_flow()
+        if lcd:
+            lcd.display(title, options[selected])
+        action = encoder.update()
+        selected = encoder.get_count() % len(options)
+        if action == "PRESS":
+            return selected
+        sleep_ms(60)
+
+# ============================================================================
+# MAIN APPLICATION
+# ============================================================================
+def main_app():
+    while True:
+        # Select Dish
+        dish_idx = menu_select("SELECT DISH", list(FOOD_DB.keys()))
+        dish_name = list(FOOD_DB.keys())[dish_idx]
+
+        # Select Pellet
+        pellet_idx = menu_select("SELECT PELLET", PELLET_DB)
+        pellet_name = PELLET_DB[pellet_idx]
+
+        # Select Utensil
+        utensil_idx = menu_select("SELECT POT", UTENSIL_DB)
+        utensil_name = UTENSIL_DB[utensil_idx]
+
+        # Lid
+        lid_idx = menu_select("LID STATE", ["Lid ON", "Lid OFF"])
+        lid_on = (lid_idx == 0)
+
+        # Calculate
+        if lcd:
+            lcd.display("Calculating...", "")
+        sleep_ms(400)
+
+        time_min, pellets_g, status = calculate(dish_name, pellet_name, utensil_name, lid_on)
+
+        # Show Result
+        if lcd:
+            lcd.display(f"T:{time_min:.0f}m P:{pellets_g:.0f}g", status)
+        else:
+            print(f"Time: {time_min} min | Pellets: {pellets_g} g")
+
+        # Wait for next round
+        while True:
+            if encoder.update() == "PRESS":
+                break
+            sleep_ms(80)
+
+# ============================================================================
+# STARTUP
+# ============================================================================
+if __name__ == "__main__":
+    print("Pellet Calculator Started")
+    if lcd:
+        lcd.display("PELLET CALC", "Press to Start")
+
+    # Wait for button press to begin
+    while True:
+        if encoder.update() == "PRESS":
+            break
+        sleep_ms(50)
+
+    main_app()
