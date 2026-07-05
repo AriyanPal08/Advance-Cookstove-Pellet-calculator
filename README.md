@@ -1,3 +1,6 @@
+## currently working on the hardware module 
+
+
 1Hz Discrete Transient Biomass Cookstove Simulator
 
 A high-fidelity thermodynamic modeling tool developed at IIT Delhi (Department of Energy Studies) to estimate biomass pellet fuel requirements for forced-draft cookstoves.
