@@ -1,5 +1,5 @@
 ## currently working on the hardware module 
-
+## working on to make it accessible through Micropython
 
 1Hz Discrete Transient Biomass Cookstove Simulator
 
