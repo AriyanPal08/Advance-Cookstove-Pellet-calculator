@@ -220,7 +220,7 @@ def main_ui_flow():
     inp["cp_food"] = dish.cp_food_kj_kgk
     
     # 4. Ambient Temp
-    inp["t_ambient_c"] = show_float_menu("Ambient Temp:", default=25.0, min_v=0.0, max_v=50.0, unit="C")
+    inp["t_ambient_c"] = show_int_menu("Ambient Temp:", default=25.0, min_v=0.0, max_v=50.0, unit="C")
     
     # 5. Wind Factor
     winds = {"Indoors": 10.0, "Low Wind": 20.0, "Med Wind": 35.0, "High Wind": 50.0}
