@@ -47,7 +47,7 @@ UTENSIL_DB = {
         is_pressure=False,
         material_note="Cast Iron, Cp=0.460 kJ/kg·K [Incropera Table A.1]",
     ),
-    "C": Utensil(
+    "COOKER (5L)": Utensil(
         name="COOKER (5L)",
         mass_kg=1.80,
         cp_kj_kgk=0.897,
