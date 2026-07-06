@@ -39,7 +39,7 @@ UTENSIL_DB = {
         is_pressure=False,
         material_note="Aluminium, Cp=0.897 kJ/kg·K [NIST/Incropera Table A.1]",
     ),
-    "T": Utensil(
+    "TAWA": Utensil(
         name="TAWA",
         mass_kg=0.70,
         cp_kj_kgk=0.460,
