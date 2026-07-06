@@ -191,7 +191,7 @@ def show_results(inp: dict):
 def main_ui_flow():
     # 1. Boot Screen
     lcd.clear()
-    lcd.putstr("IIT D SIMULATOR \nSYSTEM READY... ")
+    lcd.putstr(" WELCOME \nSYSTEM READY... ")
     led.value(1)
     beep(1500, 150)
     beep(2000, 150)
