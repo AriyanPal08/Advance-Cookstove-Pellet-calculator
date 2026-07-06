@@ -23,15 +23,15 @@ class Utensil:
             raise ValueError(f"[{self.name}] p_loss_kw must be >= 0, got {self.p_loss_kw}")
 
 UTENSIL_DB = {
-    "Standard Aluminium Pot (5L)": Utensil(
-        name="Standard Aluminium Pot (5L)",
+    "AL PAN/PATILA": Utensil(
+        name="AL PAN/PATILA",
         mass_kg=1.20,
         cp_kj_kgk=0.897,
         p_loss_kw=0.20,
         is_pressure=False,
         material_note="Aluminium, Cp=0.897 kJ/kg·K [NIST/Incropera Table A.1]",
     ),
-    "Kadhai / Wok": Utensil(
+    "K ": Utensil(
         name="Kadhai / Wok",
         mass_kg=0.90,
         cp_kj_kgk=0.897,
@@ -39,16 +39,16 @@ UTENSIL_DB = {
         is_pressure=False,
         material_note="Aluminium, Cp=0.897 kJ/kg·K [NIST/Incropera Table A.1]",
     ),
-    "Frying Pan / Tawa": Utensil(
-        name="Frying Pan / Tawa",
+    "T": Utensil(
+        name="TAWA",
         mass_kg=0.70,
         cp_kj_kgk=0.460,
         p_loss_kw=0.30,
         is_pressure=False,
         material_note="Cast Iron, Cp=0.460 kJ/kg·K [Incropera Table A.1]",
     ),
-    "Pressure Cooker (5L)": Utensil(
-        name="Pressure Cooker (5L)",
+    "C": Utensil(
+        name="COOKER (5L)",
         mass_kg=1.80,
         cp_kj_kgk=0.897,
         p_loss_kw=0.08,
