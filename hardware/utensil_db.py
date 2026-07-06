@@ -31,7 +31,7 @@ UTENSIL_DB = {
         is_pressure=False,
         material_note="Aluminium, Cp=0.897 kJ/kg·K [NIST/Incropera Table A.1]",
     ),
-    "K ": Utensil(
+    "KADHAI ": Utensil(
         name="Kadhai / Wok",
         mass_kg=0.90,
         cp_kj_kgk=0.897,
