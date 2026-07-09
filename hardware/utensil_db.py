@@ -35,28 +35,28 @@ class Utensil:
 UTENSIL_DB = {
 
     # ── ALUMINIUM POTS (Open/Covered) — Hawkins Neona / Classic ──────────────
-    "Aluminium Pot 2L": Utensil(
+    "AL Pot 2L": Utensil(
         name="Aluminium Pot 2L",
         mass_kg=0.65,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.10,
         is_pressure=False,
     ),
-    "Aluminium Pot 3L": Utensil(
+    "AL Pot 3L": Utensil(
         name="Aluminium Pot 3L",
         mass_kg=0.90,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.15,
         is_pressure=False,
     ),
-    "Aluminium Pot 5L": Utensil(
+    "AL Pot 5L": Utensil(
         name="Aluminium Pot 5L",
         mass_kg=1.20,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.20,
         is_pressure=False,
     ),
-    "Aluminium Pot 8L": Utensil(
+    "AL Pot 8L": Utensil(
         name="Aluminium Pot 8L",
         mass_kg=1.70,
         cp_kj_kgk=CP_ALUM,
@@ -65,28 +65,28 @@ UTENSIL_DB = {
     ),
 
     # ── ALUMINIUM PRESSURE COOKERS — Hawkins Classic / Prestige ──────────────
-    "Pressure Cooker 2L": Utensil(
+    "Cooker 2L": Utensil(
         name="Pressure Cooker 2L",
         mass_kg=1.20,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.04,
         is_pressure=True,
     ),
-    "Pressure Cooker 3L": Utensil(
+    "Cooker 3L": Utensil(
         name="Pressure Cooker 3L",
         mass_kg=1.45,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.05,
         is_pressure=True,
     ),
-    "Pressure Cooker 5L": Utensil(
+    "Cooker 5L": Utensil(
         name="Pressure Cooker 5L",
         mass_kg=1.80,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.08,
         is_pressure=True,
     ),
-    "Pressure Cooker 7.5L": Utensil(
+    "Cooker 7.5L": Utensil(
         name="Pressure Cooker 7.5L",
         mass_kg=2.35,
         cp_kj_kgk=CP_ALUM,
@@ -95,21 +95,21 @@ UTENSIL_DB = {
     ),
 
     # ── ALUMINIUM KADHAIS (Woks) — Hawkins range ────────────────────────────
-    "Kadhai / Wok 2.5L": Utensil(
+    "Kadhai 2.5L": Utensil(
         name="Kadhai / Wok 2.5L",
         mass_kg=0.75,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.18,
         is_pressure=False,
     ),
-    "Kadhai / Wok 4L": Utensil(
+    "Kadhai 4L": Utensil(
         name="Kadhai / Wok 4L",
         mass_kg=1.00,
         cp_kj_kgk=CP_ALUM,
         p_loss_kw=0.24,
         is_pressure=False,
     ),
-    "Kadhai / Wok 6L": Utensil(
+    "Kadhai 6L": Utensil(
         name="Kadhai / Wok 6L",
         mass_kg=1.35,
         cp_kj_kgk=CP_ALUM,
@@ -118,14 +118,14 @@ UTENSIL_DB = {
     ),
 
     # ── CAST IRON (Tawa / Frying Pan) ────────────────────────────────────────
-    "Cast Iron Tawa": Utensil(
+    "Tawa": Utensil(
         name="Cast Iron Tawa",
         mass_kg=1.80,
         cp_kj_kgk=CP_CAST_IRON,
         p_loss_kw=0.28,
         is_pressure=False,
     ),
-    "Cast Iron Frying Pan 26cm": Utensil(
+    " Frying Pan 26cm": Utensil(
         name="Cast Iron Frying Pan 26cm",
         mass_kg=2.10,
         cp_kj_kgk=CP_CAST_IRON,
@@ -134,14 +134,14 @@ UTENSIL_DB = {
     ),
 
     # ── STAINLESS STEEL 304 (Premium) — Prestige range ──────────────────────
-    "Stainless Steel Pot 3L": Utensil(
+    "Steel Pot 3L": Utensil(
         name="Stainless Steel Pot 3L",
         mass_kg=1.10,
         cp_kj_kgk=CP_SS304,
         p_loss_kw=0.16,
         is_pressure=False,
     ),
-    "Stainless Steel Pot 5L": Utensil(
+    "Steel Pot 5L": Utensil(
         name="Stainless Steel Pot 5L",
         mass_kg=1.55,
         cp_kj_kgk=CP_SS304,
