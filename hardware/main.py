@@ -548,40 +548,40 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("IIT DELHI COOKSTOVE", "  ESP32 Simulator", "    V10 / 1Hz", "Press btn to start")
+    lcd_show("WELCOME", "FDS COOKSTOVE", "Press btn to start")
     startup_jingle()
     while not was_pressed():
         time.sleep_ms(50)
     tick_feedback()
 
     dish_names = get_dish_names()
-    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
+    _, dish_name = menu_select("SELECT DISH", dish_names)
     inp["dish_name"] = dish_name
     dish = get_dish(dish_name)
     inp["dish"] = dish
 
     if dish.qty_prompt:
         if dish.qty_is_float:
-            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
+            qty = menu_adjust_float( dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+            qty = float(menu_adjust_int( dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
         inp["portions"] = qty
     elif dish.variable_water:
-        inp["water_liters"] = menu_adjust_float("2/7 WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["water_liters"] = menu_adjust_float("WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
         inp["portions"] = 1
     else:
-        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "people", 4, 1, 20)
+        inp["portions"] = menu_adjust_int("SERVINGS", "people", 4, 1, 20)
     
     n = inp["portions"]
-    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    inp["t_ambient_c"] = menu_adjust_float("AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
     
     wind_labels = list(main_logic.WIND_TIERS.keys())
-    _, wind_choice = menu_select("4/7 WIND FACTOR", wind_labels)
+    _, wind_choice = menu_select("WIND FACTOR", wind_labels)
     inp["wind_label"] = wind_choice
     inp["k_conv_current"] = main_logic.WIND_TIERS[wind_choice]
 
     utensil_names = get_utensil_names()
-    _, utensil_name = menu_select("5/7 UTENSIL", utensil_names)
+    _, utensil_name = menu_select("UTENSIL", utensil_names)
     utensil = get_utensil(utensil_name)
     inp["utensil_name"] = utensil_name
     inp["utensil"] = utensil
@@ -589,12 +589,12 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
         inp["lid_label"] = "Sealed (PC)"
-        lcd_show("7/7 LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
+        lcd_show("LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
         time.sleep_ms(1000)
     else:
         lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
@@ -621,12 +621,20 @@ def collect_inputs():
 
 
 def run_simulation(inp):
+    """
+    Pure silent calculator — runs the 1Hz physics loop as fast as the CPU
+    allows to compute cook time and pellet load. Nothing is shown on LCD
+    during the loop. The loop is a mathematical predictor, not a timer.
+    """
     geom = main_logic.compute_vessel_geometry(
         inp["m_water_initial"], inp["utensil_name"], inp["lid_factor"]
     )
     inp.update(geom)
 
-    lcd_show("COMPUTING...", "Estimating cook", "time (1Hz preview)", "Please wait...")
+    lcd_show("CALCULATING...",
+             "Finding your cook",
+             "time and pellet load.",
+             "Please wait...")
 
     eta_geom = inp["eta_geom"]
     P_in_kw = (main_logic.FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
@@ -655,26 +663,17 @@ def run_simulation(inp):
     inp["t_safety_buffer_s"] = t_safety
     inp["t_preview_s"]       = preview["t_preview_s"]
     inp["t_total_s"]         = t_total_s
-    
-    lcd_show("COOK TIME ESTIMATE",
-             "About {:.0f} minutes".format(t_total_s / 60.0),
-             "Preparing to cook...",
-             "Please wait")
-    time.sleep_ms(1500)
 
+    # ── Silent 1Hz physics loop — pure math, no LCD, no delays ───────────────
     inp = main_logic.zero_state(inp)
-    lcd_show("COOKING IN PROGRESS",
-             "Please wait...",
-             "Do not remove pot",
-             "Alarm rings when done")
 
-    T_pot         = inp["T_pot_c"]
-    m_water       = inp["m_water_current"]
-    t_elapsed     = inp["t_elapsed_s"]
-    flag_dry      = False
-    flag_over     = False
-    _boil_blip_done = False    # milestone blip fires once when boiling is detected
-    
+    T_pot      = inp["T_pot_c"]
+    m_water    = inp["m_water_current"]
+    t_elapsed  = inp["t_elapsed_s"]
+    flag_dry   = False
+    flag_over  = False
+    t_boil_reached = None
+
     m_food    = inp["m_food"]
     cp_food   = inp["cp_food"]
     m_pot     = inp["m_pot"]
@@ -685,14 +684,9 @@ def run_simulation(inp):
     T_amb     = inp["t_ambient_c"]
     k_conv    = inp["k_conv_current"]
     emissivity = inp.get("emissivity", main_logic.EMISSIVITY_DEFAULT)
-
     P_in_kw_loop = (main_logic.FAN_HIGH / 3600.0) * gcv * eta_geom
-    tick = 0
-    t_boil_reached = None
 
     while t_elapsed < t_total_s:
-        T_before = T_pot
-
         Q_in = P_in_kw_loop * main_logic.dt
         MCp_total = (m_food * cp_food) + (m_water * main_logic.CP_WATER) + (m_pot * cp_pot)
         Q_out = main_logic.heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity, lid_fac) * main_logic.dt
@@ -726,48 +720,20 @@ def run_simulation(inp):
                 if MCp_dry > 0: T_pot += Q_avail / MCp_dry
                 Q_avail = 0.0
 
-        dT = T_pot - T_before
         t_elapsed += main_logic.dt
-        tick += 1
 
         if m_water <= main_logic.M_WATER_DRY and not flag_dry:
             flag_dry = True
         if T_pot > main_logic.T_OVERHEAT_C and not flag_over:
             flag_over = True
-            inp["danger_reason"] = "OVERHEAT >150C!"
-
         if flag_dry or flag_over:
             break
 
-        # ─ Progress animation ───────────────────────────────────────────────────
-        if tick % 30 == 0:
-            pct = min(100, int((t_elapsed / t_total_s) * 100))
-            mins_left = max(0.0, (t_total_s - t_elapsed) / 60.0)
-            dot_idx = (tick // 30) % 4
-            dots = "." * dot_idx + " " * (3 - dot_idx)
-            lcd_write_line(1, "Cooking{}  {}% done".format(dots, pct))
-            if mins_left >= 1.0:
-                lcd_write_line(2, "About {:.0f} min left".format(mins_left))
-            else:
-                lcd_write_line(2, "Almost ready!")
-            # Internal-only low-water safety guard
-            if m_water > 0 and (m_water * 1000) < 100:
-                flag_dry = True
-
-        # ─ Boil milestone blip (fires once) ───────────────────────────────
-        if not _boil_blip_done and t_boil_reached is not None:
-            boil_milestone_blip()    # double-beep: "water is boiling!"
-            _boil_blip_done = True
-
-        # ─ Countdown heartbeat LED in final 60 seconds ──────────────────────
-        if (t_total_s - t_elapsed) <= 60.0 and tick % 2 == 0:
-            heartbeat_tick()         # silent double-blink: "almost done"
-
-    inp["t_elapsed_s"] = t_elapsed
-    inp["T_pot_c"] = T_pot
+    inp["t_elapsed_s"]     = t_elapsed
+    inp["T_pot_c"]         = T_pot
     inp["m_water_current"] = m_water
-    inp["flag_dry_boil"] = flag_dry
-    inp["flag_overheat"] = flag_over
+    inp["flag_dry_boil"]   = flag_dry
+    inp["flag_overheat"]   = flag_over
     inp["t_boil_reached_s"] = t_boil_reached
 
     inp = main_logic.post_process(inp)
@@ -776,6 +742,67 @@ def run_simulation(inp):
         inp["invalid_combo_msg"] = ("Pellets Out of Bound", "Limit: 50g-1300g")
 
     return inp
+
+
+def run_real_timer(t_total_s, t_boil_s):
+    """
+    Real hardware countdown using time.ticks_ms().
+    This is the ACTUAL cooking timer — one real second = one real second.
+    t_total_s  : total cook duration in seconds (from physics engine)
+    t_boil_s   : simulated boil time (used to fire the boil blip milestone
+                  at the proportionally correct real-time moment)
+    """
+    start_ms = time.ticks_ms()
+    t_total_ms = int(t_total_s * 1000)
+
+    # Pre-compute the real-time boil milestone (proportional)
+    boil_ms = int((t_boil_s / t_total_s) * t_total_ms) if t_boil_s and t_total_s > 0 else -1
+    _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
+
+    lcd_show("COOKING IN PROGRESS",
+             "Starting timer...",
+             "Alarm rings when done",
+             "Do not remove pot")
+    time.sleep_ms(500)
+
+    last_lcd_s = -1
+
+    while True:
+        now_ms    = time.ticks_ms()
+        elapsed_ms = time.ticks_diff(now_ms, start_ms)
+        elapsed_s  = elapsed_ms / 1000.0
+        remaining_s = max(0.0, t_total_s - elapsed_s)
+        remaining_min = remaining_s / 60.0
+
+        # ── Boil milestone blip at proportional real-time moment ──────────────
+        if not _boil_blip_done and elapsed_ms >= boil_ms:
+            boil_milestone_blip()
+            _boil_blip_done = True
+
+        # ── Countdown heartbeat LED in real final 60 seconds ──────────────────
+        if remaining_s <= 60.0:
+            heartbeat_tick()
+
+        # ── Update LCD once per real second ───────────────────────────────────
+        cur_s = int(elapsed_s)
+        if cur_s != last_lcd_s:
+            last_lcd_s = cur_s
+            pct = min(100, int((elapsed_s / t_total_s) * 100))
+            bar_len = 16
+            filled = int(pct / 100.0 * bar_len)
+            bar = "#" * filled + "-" * (bar_len - filled)
+            if remaining_min >= 1.0:
+                lcd_write_line(1, "{:.0f} min remaining".format(remaining_min))
+            else:
+                lcd_write_line(1, "Almost ready!       ")
+            lcd_write_line(2, "[{}]".format(bar))
+            lcd_write_line(3, "{}% done".format(pct))
+
+        # ── Timer complete ─────────────────────────────────────────────────────
+        if elapsed_ms >= t_total_ms:
+            break
+
+        time.sleep_ms(200)  # poll every 200ms for smooth heartbeat
 
 
 def display_results(inp):
@@ -788,7 +815,7 @@ def display_results(inp):
         invalid_combo_alarm()
         return
 
-    # Simulation-only warnings (no physical sensor — advisory only)
+    # Simulation-only warnings (advisory — fall through to results)
     if inp["flag_dry_boil"] or inp["flag_overheat"]:
         if inp["flag_dry_boil"]:
             lcd_show("Water may be low",
@@ -800,35 +827,44 @@ def display_results(inp):
                      "Simulation predicts",
                      "high heat. Check pot.",
                      "Press to continue")
-        invalid_combo_alarm()
+        warn_alarm()
         while not was_pressed(): time.sleep_ms(50)
         tick_feedback()
-        # Fall through to show results normally
 
-    # Normal completion -> Timer Alarm
-    lcd_show("FOOD IS READY!", "Your food is done.", "Turn off the stove.", "Press to continue")
-    timer_alarm()
-
-    # Screen 1: The two things the user needs to know
+    # ── Step 1: Show the suggestion — cook time + pellets ────────────────────
     pellets_g = inp["pellets_required_g"]
-    t_min = inp["t_elapsed_s"] / 60.0
-    lcd_show("COOK COMPLETE",
-             "Cook Time: {:.0f} min".format(t_min),
-             "Pellets Used: {:.0f}g".format(pellets_g),
-             "Press for summary")
+    t_total_s = inp["t_total_s"]
+    t_min     = t_total_s / 60.0
+    t_boil_s  = inp.get("t_boil_reached_s") or 0
+
+    lcd_show("SUGGESTED COOK TIME",
+             "Time : {:.0f} min".format(t_min),
+             "Pellets: {:.0f} g".format(pellets_g),
+             "Press BTN to START")
+
+    # Wait for user to press Start
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
-    # Screen 2: Next-cook recommendation
-    boil_min = (inp["t_boil_reached_s"] or 0) / 60.0
-    lcd_show("SUMMARY",
-             "Boiled after {:.0f} min".format(boil_min),
-             "Pellet budget: {:.0f}g".format(pellets_g),
+    # ── Step 2: Run the REAL hardware countdown timer ─────────────────────────
+    run_real_timer(t_total_s, t_boil_s)
+
+    # ── Step 3: Timer done — fire alarm until acknowledged ───────────────────
+    lcd_show("FOOD IS READY!",
+             "Your food is done.",
+             "Turn off the stove.",
+             "Press to confirm")
+    timer_alarm()
+
+    # ── Step 4: Summary screen ───────────────────────────────────────────────
+    lcd_show("COOK COMPLETE",
+             "Cook time: {:.0f} min".format(t_min),
+             "Pellets used: {:.0f}g".format(pellets_g),
              "Press to cook again")
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
-    # Pellet load indicator: LED flashes 1/2/3 times
+    # Pellet load indicator: 1/2/3 LED flashes
     pellet_load_flash(pellets_g)
 
 
