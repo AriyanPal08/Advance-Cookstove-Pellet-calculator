@@ -198,77 +198,63 @@ def danger_alarm():
         time.sleep_ms(100)
 
 
-def startup_jingle():
-    """
-    Tokyo Drift opening synth line — the ACTUAL famous melody.
-    Full iconic riff: distinctive 2-bar progression that everyone recognizes.
+def boot_jingle():
     
-    COMPOSITION STRUCTURE:
-    Bar 1: High synth stabs (E5 heavy motif)
-    Bar 2: Mid-range answer (C5-D5 call-and-response)
-    Bar 3: Rising tension (G5 ascent)
-    Bar 4: Dramatic hold + finish
-    """
-    # (frequency_hz, duration_ms, rest_after_ms)
-    riff = [
-        # ── SECTION A (0-2s) — Main stab riff ────────────────────────────────
-        (659, 80, 30),     # E5  .
-        (659, 80, 30),     # E5  .
-        (784, 120, 50),    # G5  - (held slightly longer)
-        (659, 80, 30),     # E5  .
-        (880, 100, 40),    # A5  (higher energy)
-        (784, 150, 60),    # G5  ----- (resolving downward)
-        
-        # ── Short breath/pause ─────────────────────────────────────────────
-        (0, 0, 100),       # Rest/breath
-        
-        # ── SECTION B (2.5-4s) — Variation & build ────────────────────────
-        (659, 80, 25),     # E5
-        (587, 85, 25),     # D5
-        (523, 100, 40),    # C5 - (lower, richer tone)
-        (587, 80, 25),     # D5
-        (659, 90, 25),     # E5
-        (880, 110, 50),    # A5 (big jump, climax)
-        (784, 160, 70),    # G5 ----- (held, resolving)
-        
-        # ── Breath/space ──────────────────────────────────────────────────
-        (0, 0, 100),
-        
-        # ── SECTION C (4.5-6s) — Syncopated answer phrase ───────────────────
-        (784, 75, 20),     # G5
-        (880, 75, 20),     # A5
-        (988, 85, 25),     # B5 (highest point)
-        (880, 75, 20),     # A5 (falling)
-        (784, 75, 20),     # G5
-        (740, 80, 25),     # F#5 (accidental, creates tension)
-        (659, 140, 60),    # E5 - (resolves down to home note)
-        
-        # ── Pause for effect ──────────────────────────────────────────────
-        (0, 0, 120),
-        
-        # ── SECTION D (6.5-8s) — Final power chord progression ─────────────
-        (659, 70, 20),     # E5 (tight, rhythmic)
-        (784, 85, 25),     # G5
-        (659, 70, 20),     # E5
-        (880, 95, 30),     # A5 (emphasis)
-        (784, 100, 35),    # G5 (sustained through)
-        (659, 200, 80),    # E5 -------- (final LONG held note — signature finish)
+    # Frequencies (Hz)
+    A_S = 466; B = 494; D_S = 622
+    F = 698; F_S = 740; G_S = 831
+    R = 0 # Musical Rest
+
+    # Timings (Sped up for a punchy ~10 second intro)
+    T_LONG = 300
+    T_SHORT = 175
+    P_SHORT = 60   # Pause between notes
+    P_LONG = 200   # Pause between phrases
+
+    # Riff 1: A# B D# A# A#
+    riff_main = [
+        (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
+        (D_S, T_SHORT), (R, P_SHORT), (A_S, T_LONG), (R, P_SHORT),
+        (A_S, T_LONG), (R, P_LONG)
     ]
-    
-    for freq, dur, rest in riff:
+
+    # Riff 2: A# B D# F F
+    riff_alt1 = [
+        (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
+        (D_S, T_SHORT), (R, P_SHORT), (F, T_LONG), (R, P_SHORT),
+        (F, T_LONG), (R, P_LONG)
+    ]
+
+    # Riff 3: G# F# F D# D#
+    riff_alt2 = [
+        (G_S, T_LONG), (R, P_SHORT), (F_S, T_SHORT), (R, P_SHORT),
+        (F, T_SHORT), (R, P_SHORT), (D_S, T_LONG), (R, P_SHORT),
+        (D_S, T_LONG), (R, P_LONG)
+    ]
+
+    # Assemble the shortened tab sequence
+    melody = []
+    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
+    melody.extend(riff_alt1)                     # A# B D# F F
+    for _ in range(2): melody.extend(riff_alt2)  # G# F# F D# D# (x2)
+    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
+
+    # Playback loop with Encoder Button Skip Feature
+    for freq, duration in melody:
+        if was_pressed(): 
+            break # Skip the rest of the song if knob is clicked
+            
         if freq == 0:
-            # Rest period (no sound)
-            time.sleep_ms(dur + rest)
-        else:
-            # Play note
-            led.value(1)
-            buzzer.freq(int(freq))
-            buzzer.duty(420)  # ~41% duty for clean tone
-            time.sleep_ms(dur)
             buzzer.duty(0)
             led.value(0)
-            if rest:
-                time.sleep_ms(rest)
+        else:
+            buzzer.freq(freq)
+            buzzer.duty(512)
+            led.value(1)
+        time.sleep_ms(duration)
+
+    buzzer.duty(0)
+    led.value(0)
 
 
 def boil_milestone_blip():
@@ -611,7 +597,7 @@ _FRIENDLY_MSG = {
 def collect_inputs():
     inp = {}
     lcd_show("IIT DELHI COOKSTOVE", "  ESP32 Simulator", "    V10 / 1Hz", "Press btn to start")
-    startup_jingle()
+    boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
     tick_feedback()
@@ -726,77 +712,24 @@ def run_simulation(inp):
     inp["t_preview_s"]       = preview["t_preview_s"]
     inp["t_total_s"]         = t_total_s
 
-    # ── Silent 1Hz physics loop — pure math, no LCD, no delays ───────────────
+    # ── FAST FORWARD (Skip Slow Loop) ────────────────────────────────────────
+    # The ESP32 is too slow to run a 1Hz loop for hours. 
+    # We already have the time and water from the estimate_cook_time preview!
     inp = main_logic.zero_state(inp)
-
-    T_pot      = inp["T_pot_c"]
-    m_water    = inp["m_water_current"]
-    t_elapsed  = inp["t_elapsed_s"]
-    flag_dry   = False
-    flag_over  = False
-    t_boil_reached = None
-
-    m_food    = inp["m_food"]
-    cp_food   = inp["cp_food"]
-    m_pot     = inp["m_pot"]
-    cp_pot    = inp["cp_pot"]
-    A         = inp["A_m2"]
-    gcv       = inp["gcv_kj_kg"]
-    lid_fac   = inp["lid_factor"]
-    T_amb     = inp["t_ambient_c"]
-    k_conv    = inp["k_conv_current"]
-    emissivity = inp.get("emissivity", main_logic.EMISSIVITY_DEFAULT)
-    P_in_kw_loop = (main_logic.FAN_HIGH / 3600.0) * gcv * eta_geom
-
-    while t_elapsed < t_total_s:
-        Q_in = P_in_kw_loop * main_logic.dt
-        MCp_total = (m_food * cp_food) + (m_water * main_logic.CP_WATER) + (m_pot * cp_pot)
-        Q_out = main_logic.heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity, lid_fac) * main_logic.dt
-        Q_avail = Q_in - Q_out
-
-        if Q_avail <= 0.0:
-            if MCp_total > 0: T_pot += Q_avail / MCp_total
-        else:
-            if T_pot < 100.0:
-                Q_to_100 = MCp_total * (100.0 - T_pot)
-                if Q_avail <= Q_to_100:
-                    T_pot += Q_avail / MCp_total
-                    Q_avail = 0.0
-                else:
-                    T_pot = 100.0
-                    Q_avail -= Q_to_100
-                    if t_boil_reached is None: t_boil_reached = t_elapsed + main_logic.dt
-
-            if Q_avail > 0 and m_water > 0:
-                m_evap_potential = (Q_avail / main_logic.L_V) * lid_fac
-                if m_evap_potential <= m_water:
-                    m_water -= m_evap_potential
-                    Q_avail = 0.0
-                else:
-                    Q_boil = (m_water / lid_fac) * main_logic.L_V
-                    m_water = 0.0
-                    Q_avail -= Q_boil
-
-            if Q_avail > 0 and m_water <= 0:
-                MCp_dry = (m_food * cp_food) + (m_pot * cp_pot)
-                if MCp_dry > 0: T_pot += Q_avail / MCp_dry
-                Q_avail = 0.0
-
-        t_elapsed += main_logic.dt
-
-        if m_water <= main_logic.M_WATER_DRY and not flag_dry:
-            flag_dry = True
-        if T_pot > main_logic.T_OVERHEAT_C and not flag_over:
-            flag_over = True
-        if flag_dry or flag_over:
-            break
-
-    inp["t_elapsed_s"]     = t_elapsed
-    inp["T_pot_c"]         = T_pot
-    inp["m_water_current"] = m_water
-    inp["flag_dry_boil"]   = flag_dry
-    inp["flag_overheat"]   = flag_over
-    inp["t_boil_reached_s"] = t_boil_reached
+    
+    inp["t_elapsed_s"]     = t_total_s
+    inp["T_pot_c"]         = 100.0 if t_heat_s > 0 else inp["t_ambient_c"]
+    inp["m_water_current"] = preview.get("m_water_end_kg", 0.0)
+    inp["flag_dry_boil"]   = (inp["m_water_current"] <= 0)
+    inp["flag_overheat"]   = False
+    inp["t_boil_reached_s"] = preview["t_boil_s"] if preview["t_boil_s"] > 0 else None
+    
+    # Dummy energy values so post_process() doesn't throw KeyError
+    inp["P_in_kw"]       = P_in_kw
+    inp["Q_in_kj"]       = 0.0
+    inp["Q_sensible_kj"] = 0.0
+    inp["Q_evap_kj"]     = 0.0
+    inp["Q_out_kj"]      = preview.get("Q_out_accum_kj", 0.0)
 
     inp = main_logic.post_process(inp)
 
@@ -868,59 +801,51 @@ def run_real_timer(t_total_s, t_boil_s):
 
 
 def display_results(inp):
-    # Pellet load out of bounds — friendly message
-    if "invalid_combo_msg" in inp:
-        lcd_show("CHECK YOUR SETUP",
-                 "Pellet amount is",
-                 "unrealistic for",
-                 "this cook. Retry.")
-        invalid_combo_alarm()
-        return
-
-    # Simulation-only warnings (advisory — fall through to results)
-    if inp["flag_dry_boil"] or inp["flag_overheat"]:
-        if inp["flag_dry_boil"]:
-            lcd_show("Water may be low",
-                     "Simulation predicts",
-                     "water running low.",
-                     "Press to continue")
-        else:
-            lcd_show("Check your stove",
-                     "Simulation predicts",
-                     "high heat. Check pot.",
-                     "Press to continue")
-        warn_alarm()
-        while not was_pressed(): time.sleep_ms(50)
-        tick_feedback()
-
-    # ── Step 1: Show the suggestion — cook time + pellets ────────────────────
-    pellets_g = inp["pellets_required_g"]
-    t_total_s = inp["t_total_s"]
-    t_min     = t_total_s / 60.0
-    t_boil_s  = inp.get("t_boil_reached_s") or 0
-
-    lcd_show("SUGGESTED COOK TIME",
-             "Time : {:.0f} min".format(t_min),
-             "Pellets: {:.0f} g".format(pellets_g),
-             "Press BTN to START")
-
-    # Wait for user to press Start
+    # ── Step 1: Calculate Physics Suggestion ─────────────────────────────────
+    t_min_suggested = int(inp["t_total_s"] / 60.0)
+    
+    # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
+    lcd_show("PHYSICS SUGGESTION",
+             "Time: ~{} min".format(t_min_suggested),
+             "Press BTN to set",
+             "your actual time")
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
-    # ── Step 2: Run the REAL hardware countdown timer ─────────────────────────
-    run_real_timer(t_total_s, t_boil_s)
+    user_min = menu_adjust_int("SET COOK TIME", "min", t_min_suggested, 1, 240)
+    user_total_s = user_min * 60.0
 
-    # ── Step 3: Timer done — fire alarm until acknowledged ───────────────────
+    # ── Step 3: Recalculate Pellets for User's Time ──────────────────────────
+    margin_factor = inp.get("procurement_margin_factor", 1.08)
+    pellets_g = (user_total_s / 3600.0) * main_logic.FAN_HIGH * 1000.0 * margin_factor
+
+    # Hard cap at 1300g per user rules
+    if pellets_g > 1300:
+        pellets_g = 1300
+
+    # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
+    lcd_show("LOAD PELLETS",
+             "Time   : {:.0f} min".format(user_min),
+             "Pellets: {:.0f} g".format(pellets_g),
+             "Press BTN to START")
+
+    while not was_pressed(): time.sleep_ms(50)
+    tick_feedback()
+
+    # ── Step 5: Run the REAL hardware countdown timer ────────────────────────
+    t_boil_s = inp.get("t_boil_reached_s") or 0
+    run_real_timer(user_total_s, t_boil_s)
+
+    # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
     lcd_show("FOOD IS READY!",
              "Your food is done.",
              "Turn off the stove.",
              "Press to confirm")
     timer_alarm()
 
-    # ── Step 4: Summary screen ───────────────────────────────────────────────
+    # ── Step 7: Summary screen ───────────────────────────────────────────────
     lcd_show("COOK COMPLETE",
-             "Cook time: {:.0f} min".format(t_min),
+             "Cook time: {:.0f} min".format(user_min),
              "Pellets used: {:.0f}g".format(pellets_g),
              "Press to cook again")
     while not was_pressed(): time.sleep_ms(50)
