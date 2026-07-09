@@ -25,17 +25,31 @@ from utensil_db import UTENSIL_DB, get_utensil_names, get_utensil
 import main_logic
 
 # =============================================================================
-# HARDWARE PIN SETUP
+# HARDWARE PIN SETUP — WITH ERROR HANDLING
 # =============================================================================
 
-i2c = machine.I2C(0, sda=machine.Pin(21), scl=machine.Pin(22), freq=400000)
-time.sleep_ms(200)
-from esp8266_i2c_lcd import I2cLcd
-LCD_ADDR = 0x27
-LCD_ROWS = 4
-LCD_COLS = 20
-lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
+# I2C LCD with fallback
+lcd = None
+try:
+    i2c = machine.I2C(0, sda=machine.Pin(21), scl=machine.Pin(22), freq=400000)
+    time.sleep_ms(200)
+    from esp8266_i2c_lcd import I2cLcd
+    LCD_ADDR = 0x27
+    LCD_ROWS = 4
+    LCD_COLS = 20
+    lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
+except Exception as e:
+    # LCD initialization failed — use buzzer to alert user
+    buzzer_pin = machine.PWM(machine.Pin(27), freq=1000, duty=0)
+    for _ in range(5):
+        buzzer_pin.duty(512)
+        time.sleep_ms(200)
+        buzzer_pin.duty(0)
+        time.sleep_ms(200)
+    # Crash with info
+    raise Exception("LCD Init Failed: " + str(e))
 
+# Encoder setup (should always work)
 enc_clk = machine.Pin(32, machine.Pin.IN, machine.Pin.PULL_UP)
 enc_dt  = machine.Pin(33, machine.Pin.IN, machine.Pin.PULL_UP)
 enc_sw  = machine.Pin(25, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -186,30 +200,75 @@ def danger_alarm():
 
 def startup_jingle():
     """
-    Tokyo Drift (Teriyaki Boyz) main synth riff — plays once on boot.
-    Approximated in PWM notes: da-da-DA  da-da-DAAA  da-DA
-    Notes: E5 E5 G5 | E5 D5 C5(hold) | D5 E5
+    Tokyo Drift opening synth line — the ACTUAL famous melody.
+    Full iconic riff: distinctive 2-bar progression that everyone recognizes.
+    
+    COMPOSITION STRUCTURE:
+    Bar 1: High synth stabs (E5 heavy motif)
+    Bar 2: Mid-range answer (C5-D5 call-and-response)
+    Bar 3: Rising tension (G5 ascent)
+    Bar 4: Dramatic hold + finish
     """
     # (frequency_hz, duration_ms, rest_after_ms)
     riff = [
-        (659, 120, 40),   # E5  da
-        (659, 120, 40),   # E5  da
-        (784, 280, 60),   # G5  DA  (longer)
-        (659, 120, 40),   # E5  da
-        (587, 120, 40),   # D5  da
-        (523, 400, 80),   # C5  DAAA (held)
-        (587, 140, 40),   # D5  da
-        (659, 300, 0),    # E5  DA  (finish)
+        # ── SECTION A (0-2s) — Main stab riff ────────────────────────────────
+        (659, 80, 30),     # E5  .
+        (659, 80, 30),     # E5  .
+        (784, 120, 50),    # G5  - (held slightly longer)
+        (659, 80, 30),     # E5  .
+        (880, 100, 40),    # A5  (higher energy)
+        (784, 150, 60),    # G5  ----- (resolving downward)
+        
+        # ── Short breath/pause ─────────────────────────────────────────────
+        (0, 0, 100),       # Rest/breath
+        
+        # ── SECTION B (2.5-4s) — Variation & build ────────────────────────
+        (659, 80, 25),     # E5
+        (587, 85, 25),     # D5
+        (523, 100, 40),    # C5 - (lower, richer tone)
+        (587, 80, 25),     # D5
+        (659, 90, 25),     # E5
+        (880, 110, 50),    # A5 (big jump, climax)
+        (784, 160, 70),    # G5 ----- (held, resolving)
+        
+        # ── Breath/space ──────────────────────────────────────────────────
+        (0, 0, 100),
+        
+        # ── SECTION C (4.5-6s) — Syncopated answer phrase ───────────────────
+        (784, 75, 20),     # G5
+        (880, 75, 20),     # A5
+        (988, 85, 25),     # B5 (highest point)
+        (880, 75, 20),     # A5 (falling)
+        (784, 75, 20),     # G5
+        (740, 80, 25),     # F#5 (accidental, creates tension)
+        (659, 140, 60),    # E5 - (resolves down to home note)
+        
+        # ── Pause for effect ──────────────────────────────────────────────
+        (0, 0, 120),
+        
+        # ── SECTION D (6.5-8s) — Final power chord progression ─────────────
+        (659, 70, 20),     # E5 (tight, rhythmic)
+        (784, 85, 25),     # G5
+        (659, 70, 20),     # E5
+        (880, 95, 30),     # A5 (emphasis)
+        (784, 100, 35),    # G5 (sustained through)
+        (659, 200, 80),    # E5 -------- (final LONG held note — signature finish)
     ]
+    
     for freq, dur, rest in riff:
-        led.value(1)
-        buzzer.freq(freq)
-        buzzer.duty(420)
-        time.sleep_ms(dur)
-        buzzer.duty(0)
-        led.value(0)
-        if rest:
-            time.sleep_ms(rest)
+        if freq == 0:
+            # Rest period (no sound)
+            time.sleep_ms(dur + rest)
+        else:
+            # Play note
+            led.value(1)
+            buzzer.freq(int(freq))
+            buzzer.duty(420)  # ~41% duty for clean tone
+            time.sleep_ms(dur)
+            buzzer.duty(0)
+            led.value(0)
+            if rest:
+                time.sleep_ms(rest)
 
 
 def boil_milestone_blip():
@@ -402,15 +461,18 @@ DISH_UTENSIL_PREF = {
 BEVERAGE_DISHES = {"Tea (Chai)", "Coffee", "Boiling Milk"}
 
 # Realistic max servings per pot capacity bucket (L)
-# caps: servings that realistically fit
+# Updated to cover ALL utensil sizes defined in UTENSIL_CAPACITY_L
 CAP_MAX_SERVINGS = {
-    2.0: 3,
-    3.0: 5,
-    4.0: 7,
-    5.0: 10,
-    6.0: 12,
-    7.5: 16,
-    8.0: 18,
+    0.5: 1,    # Cast Iron Tawa (dry cooking only, 1 roti)
+    1.5: 2,    # Cast Iron Frying Pan (frying dish for 2 people)
+    2.0: 3,    # Aluminium Pot 2L
+    2.5: 4,    # Kadhai / Wok 2.5L
+    3.0: 5,    # Pressure Cooker 3L, Aluminium Pot 3L
+    4.0: 7,    # Kadhai / Wok 4L
+    5.0: 10,   # Pressure Cooker 5L, Aluminium Pot 5L
+    6.0: 12,   # Kadhai / Wok 6L
+    7.5: 16,   # Pressure Cooker 7.5L
+    8.0: 18,   # Aluminium Pot 8L
 }
 
 def validate_inputs(inp):
@@ -548,40 +610,40 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("WELCOME", "FDS COOKSTOVE", "Press btn to start")
+    lcd_show("IIT DELHI COOKSTOVE", "  ESP32 Simulator", "    V10 / 1Hz", "Press btn to start")
     startup_jingle()
     while not was_pressed():
         time.sleep_ms(50)
     tick_feedback()
 
     dish_names = get_dish_names()
-    _, dish_name = menu_select("SELECT DISH", dish_names)
+    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
     inp["dish_name"] = dish_name
     dish = get_dish(dish_name)
     inp["dish"] = dish
 
     if dish.qty_prompt:
         if dish.qty_is_float:
-            qty = menu_adjust_float( dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
+            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            qty = float(menu_adjust_int( dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
         inp["portions"] = qty
     elif dish.variable_water:
-        inp["water_liters"] = menu_adjust_float("WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["water_liters"] = menu_adjust_float("2/7 WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
         inp["portions"] = 1
     else:
-        inp["portions"] = menu_adjust_int("SERVINGS", "people", 4, 1, 20)
+        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "people", 4, 1, 20)
     
     n = inp["portions"]
-    inp["t_ambient_c"] = menu_adjust_float("AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
     
     wind_labels = list(main_logic.WIND_TIERS.keys())
-    _, wind_choice = menu_select("WIND FACTOR", wind_labels)
+    _, wind_choice = menu_select("4/7 WIND FACTOR", wind_labels)
     inp["wind_label"] = wind_choice
     inp["k_conv_current"] = main_logic.WIND_TIERS[wind_choice]
 
     utensil_names = get_utensil_names()
-    _, utensil_name = menu_select("UTENSIL", utensil_names)
+    _, utensil_name = menu_select("5/7 UTENSIL", utensil_names)
     utensil = get_utensil(utensil_name)
     inp["utensil_name"] = utensil_name
     inp["utensil"] = utensil
@@ -589,12 +651,12 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
         inp["lid_label"] = "Sealed (PC)"
-        lcd_show("LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
+        lcd_show("7/7 LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
         time.sleep_ms(1000)
     else:
         lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
