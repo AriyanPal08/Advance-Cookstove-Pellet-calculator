@@ -186,18 +186,30 @@ def danger_alarm():
 
 def startup_jingle():
     """
-    4-note ascending jingle on boot: C5 → E5 → G5 → C6.
-    Purely cosmetic — plays once at power-on.
+    Tokyo Drift (Teriyaki Boyz) main synth riff — plays once on boot.
+    Approximated in PWM notes: da-da-DA  da-da-DAAA  da-DA
+    Notes: E5 E5 G5 | E5 D5 C5(hold) | D5 E5
     """
-    notes = [523, 659, 784, 1047]  # C5, E5, G5, C6 (Hz)
-    for freq in notes:
+    # (frequency_hz, duration_ms, rest_after_ms)
+    riff = [
+        (659, 120, 40),   # E5  da
+        (659, 120, 40),   # E5  da
+        (784, 280, 60),   # G5  DA  (longer)
+        (659, 120, 40),   # E5  da
+        (587, 120, 40),   # D5  da
+        (523, 400, 80),   # C5  DAAA (held)
+        (587, 140, 40),   # D5  da
+        (659, 300, 0),    # E5  DA  (finish)
+    ]
+    for freq, dur, rest in riff:
         led.value(1)
         buzzer.freq(freq)
-        buzzer.duty(400)
-        time.sleep_ms(120)
+        buzzer.duty(420)
+        time.sleep_ms(dur)
         buzzer.duty(0)
         led.value(0)
-        time.sleep_ms(40)
+        if rest:
+            time.sleep_ms(rest)
 
 
 def boil_milestone_blip():
