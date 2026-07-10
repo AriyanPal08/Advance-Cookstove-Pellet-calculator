@@ -113,7 +113,20 @@ def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor, m_food_kg=0.0)
     else:
         top_exposure = 0.85
     A_m2 = surface_mult * (A_side + top_exposure * A_top)
-    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
+    # eta_geom scaling -- ORIGINAL formula (reference mass 5.0 kg, exponent 0.35):
+    #   eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
+    # Problem: the formula caps at MAX_EFFICIENCY exactly at 5.0 kg. For a 5-litre
+    # load in an 8L pot the pot is only 62% full, yet eta_geom hits its ceiling
+    # while A_m2 (heat loss area) grows with volume -- making the model overly
+    # pessimistic for large-volume cooks.
+    #
+    # FIX: raise the reference mass to 8.0 kg (the largest common pot in the DB)
+    # and soften the exponent to 0.30. This spreads the scaling across the full
+    # realistic range so that eta_geom only reaches MAX_EFFICIENCY when the pot
+    # is truly full (~8 kg water). For small masses (1-3 kg) the new formula
+    # gives a slightly lower (more conservative) value than the old one, so
+    # small-dish estimates are not made optimistic -- they are unchanged or safer.
+    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 8.0) ** 0.30))
 
     # ── Liquid-heavy load correction ─────────────────────────────────────────
     # When added water is very low (<0.3 kg) but total thermal mass is
