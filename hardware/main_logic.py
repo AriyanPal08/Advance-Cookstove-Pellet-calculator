@@ -14,6 +14,14 @@
 # [4] WBT v4.2.3 (2017). Clean Cooking Alliance.
 # [5] Choi & Okos (1986); ICMR-NIN (2017).
 # =============================================================================
+#
+# ── MODEL SCOPE ──────────────────────────────────────────────────────────────
+# This model is designed for constant-feed, forced-draft pellet stoves
+# operating at a fixed HIGH fan setting. There is no closed-loop pellet
+# control: the feed rate is mechanically fixed. The model serves as a
+# decision-support tool for hopper loading — it tells the user how many
+# grams of pellets to load before cooking, not during.
+# ─────────────────────────────────────────────────────────────────────────────
 
 import math
 
@@ -25,7 +33,10 @@ from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil
 # SECTION 3 — IMMOVABLE PHYSICAL CONSTANTS  (unchanged from v1)
 # =============================================================================
 
-FAN_HIGH         = 0.78      # kg/hr — high-fan mechanical feed rate
+# FAN_HIGH is experimentally measured on the target stove at HIGH fan
+# setting. The model assumes this feed rate is constant for the entire
+# cook — there is no closed-loop or variable-rate pellet control.
+FAN_HIGH         = 0.78      # kg/hr — experimentally measured pellet feed rate at HIGH fan
 MAX_EFFICIENCY   = 0.45      # — maximum combustion efficiency
 L_V              = 2257.0    # kJ/kg — latent heat of vaporisation at 100 C
 SIGMA            = 5.67e-8   # W/m2-K4 — Stefan-Boltzmann constant
@@ -79,11 +90,16 @@ def _geometry_profile(utensil_name):
     return (0.65, 1.00)
 
 
-def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor):
+def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor, m_food_kg=0.0):
     """
     Reverse-engineer pot dimensions from water mass.
     Cylinder model: V = pi*r^2*h with utensil-specific h/d ratio.
     Exposed loss area = side wall + partial top (bottom insulated by stove).
+
+    m_food_kg: total food mass (excluding water). Used to detect liquid-heavy
+    loads where added water is low but the pot is full — in those cases the
+    flame coupling (eta_geom) is slightly under-estimated by the water-volume
+    proxy, so a small conservative correction is applied.
     """
     V_m3 = m_water_kg / 1000.0
     h_over_d, surface_mult = _geometry_profile(utensil_name)
@@ -98,6 +114,19 @@ def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor):
         top_exposure = 0.85
     A_m2 = surface_mult * (A_side + top_exposure * A_top)
     eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
+
+    # ── Liquid-heavy load correction ─────────────────────────────────────────
+    # When added water is very low (<0.3 kg) but total thermal mass is
+    # significant (food + water > 1.5 kg), the pot is likely full of
+    # liquid-heavy food (e.g. dal, curry). The water-volume proxy under-
+    # estimates flame coupling, so we apply a small upward correction
+    # (max +0.08, capped at MAX_EFFICIENCY) to eta_geom.
+    total_mass = m_water_kg + m_food_kg
+    if m_water_kg < 0.3 and total_mass > 1.5:
+        correction = min(0.08, 0.08 * (total_mass - 1.5) / 3.0)
+        eta_geom = min(MAX_EFFICIENCY, eta_geom + correction)
+    # ─────────────────────────────────────────────────────────────────────────
+
     return {"V_m3": V_m3, "d_m": d_m, "h_m": h_m, "A_m2": A_m2, "eta_geom": eta_geom}
 
 
@@ -395,8 +424,24 @@ def run_1hz_loop(inp):
 
 def post_process(inp):
     """
-    V10 Time-Based Pellet + Dynamic Procurement Margin.
-    Formula: pellets = (t/3600) * FAN_HIGH * 1000 * margin
+    Phase 3: Pellet procurement recommendation + diagnostics.
+
+    TWO pellet outputs are produced:
+
+    pellets_energy_based_g  [RESEARCH / DEBUG ONLY]
+        Calculated from total energy demand (Q_demand_kj) divided by the
+        effective pellet energy delivery rate (GCV * eta_geom). Represents
+        what thermodynamics alone would suggest. NOT shown to the villager
+        because the stove has no closed-loop control — it cannot modulate
+        feed rate to match energy demand.
+
+    pellets_required_g  [OPERATIONAL — shown to the villager]
+        Calculated from elapsed cook time and the fixed pellet feed rate:
+            pellets = (cook_time_hrs) x FAN_HIGH x 1000 x margin
+        This is the correct recommendation for a constant-feed forced-draft
+        stove. FAN_HIGH = 0.78 kg/hr is the experimentally measured feed
+        rate at HIGH fan setting; the stove runs at this rate for the full
+        cook duration regardless of dish or load.
     """
     t_elapsed = inp["t_elapsed_s"]
     gcv = inp["gcv_kj_kg"]
@@ -405,13 +450,27 @@ def post_process(inp):
     lid_factor = inp.get("lid_factor", 1.0)
     utensil = inp.get("utensil", None)
 
-    # Energy demand for diagnostics (NOT used for final pellets!)
+    # Total energy demanded by the cook (sensible heat + evaporation + losses)
     Q_demand_kj = (
         inp["Q_sensible_kj"] + inp["Q_evap_kj"] + inp["Q_out_kj"]
     )
 
-    # TIME-BASED PELLET RECOMMENDATION (V10 logic unchanged)
+    # ── ENERGY-BASED PELLET ESTIMATE (research/debug only) ────────────────────
+    # How many grams of pellets would thermodynamics alone require?
+    # Effective delivery = GCV (kJ/kg) * combustion efficiency (eta_geom)
+    effective_energy_kj_per_kg = gcv * eta_geom
+    if effective_energy_kj_per_kg > 0:
+        pellets_energy_based_g = (Q_demand_kj / effective_energy_kj_per_kg) * 1000.0
+    else:
+        pellets_energy_based_g = 0.0
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── TIME-BASED PELLET RECOMMENDATION (operational, shown to villager) ─────
+    # The stove operates at a constant, mechanically fixed pellet feed rate
+    # (FAN_HIGH kg/hr). There is no closed-loop control. The correct hopper
+    # load is simply: feed_rate x cook_duration x procurement_margin.
     pellets_time_g = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
+    # ─────────────────────────────────────────────────────────────────────────
 
     # ═══════════════════════════════════════════════════════════════════════════
     # DYNAMIC PROCUREMENT MARGIN (Stochastic Environmental Variance)
@@ -438,16 +497,19 @@ def post_process(inp):
         procurement_margin = 0.08
         margin_reason = "Default"
 
-    # Apply dynamic margin
+    # Apply dynamic margin to the operational (time-based) recommendation
     pellets_with_margin_g = pellets_time_g * (1.0 + procurement_margin)
 
-    inp["Q_demand_kj"]         = Q_demand_kj
-    inp["pellets_required_g"]  = pellets_with_margin_g
-    inp["pellets_required_kg"] = pellets_with_margin_g / 1000.0
-    inp["pellets_time_based_g"] = pellets_time_g
+    inp["Q_demand_kj"]              = Q_demand_kj
+    # Operational output (villager-facing)
+    inp["pellets_required_g"]       = pellets_with_margin_g
+    inp["pellets_required_kg"]      = pellets_with_margin_g / 1000.0
+    inp["pellets_time_based_g"]     = pellets_time_g
+    # Research/debug output (not shown on LCD)
+    inp["pellets_energy_based_g"]   = pellets_energy_based_g
     inp["procurement_margin_factor"] = (1.0 + procurement_margin)
-    inp["procurement_margin_pct"] = procurement_margin * 100.0
-    inp["margin_reason"] = margin_reason
+    inp["procurement_margin_pct"]   = procurement_margin * 100.0
+    inp["margin_reason"]            = margin_reason
 
     inp["t_phase1_s"] = 0.15 * t_elapsed
     inp["t_phase2_s"] = 0.65 * t_elapsed
