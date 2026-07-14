@@ -45,6 +45,15 @@ EMISSIVITY_DEFAULT = 0.35    # — oxidised aluminium [Incropera Table 7.1]
 
 CP_WATER         = 4.184     # kJ/kg-K — specific heat of water (NIST, ~60 C)
 
+# ============================================================
+# PRESSURE COOKER POST-BOIL CORRECTION (PLACEHOLDER)
+# ============================================================
+# Currently set to 1.0 (no correction).
+# This exists so future pressure-cooker experiments can calibrate
+# a reduction factor. It is intentionally left at 1.0 because only
+# one validation dataset currently exists.
+PRESSURE_POST_BOIL_FACTOR = 1.0
+
 # Wind Factor tiers — convection coefficient h (W/m2-K)  [source: 3]
 WIND_TIERS = {
     "Indoors / Still Air":        10.0,
