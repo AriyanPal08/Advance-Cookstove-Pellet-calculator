@@ -672,7 +672,7 @@ def collect_inputs():
                 # Currently set to 1.0 (no correction)
                 kinetic_time_s += stage.duration_s * n * main_logic.PRESSURE_POST_BOIL_FACTOR
             elif stage.stage_type == "frying":
-                kinetic_time_s += stage.duration_s
+                kinetic_time_s += stage.duration_s * n
         inp["t_kinetic_base_s"] = kinetic_time_s
 
     return inp
