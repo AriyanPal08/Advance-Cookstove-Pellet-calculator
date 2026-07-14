@@ -1,537 +1,891 @@
 # =============================================================================
-# hardware/main_logic.py — MicroPython Port (ESP32)
-# 1Hz Discrete Transient Biomass Cookstove Simulator
-# IIT Delhi - Department of Energy Studies
+# hardware/main.py — ESP32 MicroPython Master Boot Script
+# IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
 #
-# ALL PHYSICS FUNCTIONS AND CONSTANTS PRESERVED BYTE-FOR-BYTE.
-# Terminal UI (ANSI codes, prompts, menus, print_receipt) REMOVED.
-# Only pure computation functions remain for hardware/main.py to call.
+# HARDWARE WIRING:
+#   I2C LCD 20x4:  SDA=21, SCL=22
+#   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
+#   LED:           Pin 26
+#   Buzzer:        Pin 27 (PWM)
 #
-# SOURCES:
-# [1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
-# [2] NIST WebBook — Aluminium thermophysical properties.
-# [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7e.
-# [4] WBT v4.2.3 (2017). Clean Cooking Alliance.
-# [5] Choi & Okos (1986); ICMR-NIN (2017).
+# ALARM BEHAVIORS:
+#   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
+#   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
+#   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
+#   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
 # =============================================================================
-#
-# ── MODEL SCOPE ──────────────────────────────────────────────────────────────
-# This model is designed for constant-feed, forced-draft pellet stoves
-# operating at a fixed HIGH fan setting. There is no closed-loop pellet
-# control: the feed rate is mechanically fixed. The model serves as a
-# decision-support tool for hopper loading — it tells the user how many
-# grams of pellets to load before cooking, not during.
-# ─────────────────────────────────────────────────────────────────────────────
 
+import machine
+import time
 import math
 
-from food_db    import FOOD_DB, DishProfile, get_dish_names
-from pellet_db  import PELLET_DB, PelletType, get_pellet_names
-from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil
+from food_db    import FOOD_DB, get_dish_names, get_dish
+from pellet_db  import PELLET_DB, get_pellet_names, get_pellet
+from utensil_db import UTENSIL_DB, get_utensil_names, get_utensil
+import main_logic
 
 # =============================================================================
-# SECTION 3 — IMMOVABLE PHYSICAL CONSTANTS  (unchanged from v1)
+# HARDWARE PIN SETUP — WITH ERROR HANDLING
 # =============================================================================
 
-# FAN_HIGH is experimentally measured on the target stove at HIGH fan
-# setting. The model assumes this feed rate is constant for the entire
-# cook — there is no closed-loop or variable-rate pellet control.
-FAN_HIGH         = 0.78      # kg/hr — experimentally measured pellet feed rate at HIGH fan
-MAX_EFFICIENCY   = 0.45      # — maximum combustion efficiency
-L_V              = 2257.0    # kJ/kg — latent heat of vaporisation at 100 C
-SIGMA            = 5.67e-8   # W/m2-K4 — Stefan-Boltzmann constant
-dt               = 1.0       # s — simulation time step (1 Hz)
-EMISSIVITY_DEFAULT = 0.35    # — oxidised aluminium [Incropera Table 7.1]
+# I2C LCD with fallback
+lcd = None
+try:
+    i2c = machine.I2C(0, sda=machine.Pin(21), scl=machine.Pin(22), freq=400000)
+    time.sleep_ms(200)
+    from esp8266_i2c_lcd import I2cLcd
+    LCD_ADDR = 0x27
+    LCD_ROWS = 4
+    LCD_COLS = 20
+    lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
+except Exception as e:
+    # LCD initialization failed — use buzzer to alert user
+    buzzer_pin = machine.PWM(machine.Pin(27), freq=1000, duty=0)
+    for _ in range(5):
+        buzzer_pin.duty(512)
+        time.sleep_ms(200)
+        buzzer_pin.duty(0)
+        time.sleep_ms(200)
+    # Crash with info
+    raise Exception("LCD Init Failed: " + str(e))
 
-CP_WATER         = 4.184     # kJ/kg-K — specific heat of water (NIST, ~60 C)
+# Encoder setup (should always work)
+enc_clk = machine.Pin(32, machine.Pin.IN, machine.Pin.PULL_UP)
+enc_dt  = machine.Pin(33, machine.Pin.IN, machine.Pin.PULL_UP)
+enc_sw  = machine.Pin(25, machine.Pin.IN, machine.Pin.PULL_UP)
 
-# ============================================================
-# PRESSURE COOKER POST-BOIL CORRECTION (PLACEHOLDER)
-# ============================================================
-# Currently set to 1.0 (no correction).
-# This exists so future pressure-cooker experiments can calibrate
-# a reduction factor. It is intentionally left at 1.0 because only
-# one validation dataset currently exists.
-PRESSURE_POST_BOIL_FACTOR = 1.0
+led = machine.Pin(26, machine.Pin.OUT)
+led.value(0)
 
-# Wind Factor tiers — convection coefficient h (W/m2-K)  [source: 3]
-WIND_TIERS = {
-    "Indoors / Still Air":        10.0,
-    "Outdoors (Low Wind)":        20.0,
-    "Outdoors (Medium Wind)":     35.0,
-    "Outdoors (High Wind)":       50.0,
+buzzer = machine.PWM(machine.Pin(27), freq=1000, duty=0)
+
+
+# =============================================================================
+# ENCODER STATE (volatile — modified by ISR)
+# =============================================================================
+
+_enc_pos = 0
+_enc_pressed = False
+_last_enc_time = 0
+_last_btn_time = 0
+DEBOUNCE_MS = 5
+BTN_DEBOUNCE_MS = 200
+
+def _enc_isr(pin):
+    global _enc_pos, _last_enc_time
+    now = time.ticks_ms()
+    if time.ticks_diff(now, _last_enc_time) < DEBOUNCE_MS:
+        return
+    _last_enc_time = now
+    if enc_dt.value() != enc_clk.value():
+        _enc_pos += 1
+    else:
+        _enc_pos -= 1
+
+def _btn_isr(pin):
+    global _enc_pressed, _last_btn_time
+    now = time.ticks_ms()
+    if time.ticks_diff(now, _last_btn_time) < BTN_DEBOUNCE_MS:
+        return
+    _last_btn_time = now
+    _enc_pressed = True
+
+enc_clk.irq(trigger=machine.Pin.IRQ_FALLING, handler=_enc_isr)
+enc_sw.irq(trigger=machine.Pin.IRQ_FALLING, handler=_btn_isr)
+
+def get_encoder_pos():
+    return _enc_pos
+
+def set_encoder_pos(val):
+    global _enc_pos
+    _enc_pos = val
+
+def was_pressed():
+    global _enc_pressed
+    if _enc_pressed:
+        _enc_pressed = False
+        return True
+    return False
+
+
+# =============================================================================
+# LED & BUZZER ALARM SYSTEM
+# =============================================================================
+
+def tick_feedback():
+    """Tactile feedback: 10ms LED blink + 10ms 1kHz beep."""
+    led.value(1)
+    buzzer.freq(1000)
+    buzzer.duty(512)
+    time.sleep_ms(10)
+    buzzer.duty(0)
+    led.value(0)
+
+def warn_alarm():
+    """Soft advisory warning: 2 medium beeps + LED. Less severe than invalid_combo_alarm."""
+    global _enc_pressed
+    _enc_pressed = False
+    for _ in range(2):
+        led.value(1)
+        buzzer.freq(900)
+        buzzer.duty(400)
+        time.sleep_ms(180)
+        buzzer.duty(0)
+        led.value(0)
+        time.sleep_ms(120)
+    while not was_pressed():
+        time.sleep_ms(50)
+    tick_feedback()
+
+def invalid_combo_alarm():
+    """Invalid setup alarm: 3 rapid blinks + 1500Hz beeps. Hard block."""
+    global _enc_pressed
+    _enc_pressed = False
+    for _ in range(3):
+        led.value(1)
+        buzzer.freq(1500)
+        buzzer.duty(512)
+        time.sleep_ms(100)
+        buzzer.duty(0)
+        led.value(0)
+        time.sleep_ms(100)
+    while not was_pressed():
+        time.sleep_ms(50)
+    tick_feedback()
+
+def timer_alarm():
+    """
+    Time-over cooking alarm: continuous 1kHz siren + rapid LED toggle.
+    Runs until button press acknowledgment.
+    """
+    global _enc_pressed
+    _enc_pressed = False
+    while True:
+        if was_pressed():
+            buzzer.duty(0)
+            led.value(0)
+            return
+        buzzer.freq(1000)
+        buzzer.duty(512)
+        led.value(1)
+        time.sleep_ms(200)
+        buzzer.duty(0)
+        led.value(0)
+        time.sleep_ms(200)
+
+def danger_alarm():
+    """
+    Protection/Danger alarm: continuous alternating 800/1200Hz siren
+    with rapid LED flashing. Runs until button press acknowledgment.
+    """
+    global _enc_pressed
+    _enc_pressed = False
+    freq_a = 800
+    freq_b = 1200
+    toggle = False
+    while True:
+        if was_pressed():
+            buzzer.duty(0)
+            led.value(0)
+            return
+        if toggle:
+            buzzer.freq(freq_a)
+        else:
+            buzzer.freq(freq_b)
+        buzzer.duty(512)
+        led.value(1 if toggle else 0)
+        toggle = not toggle
+        time.sleep_ms(100)
+
+
+def boot_jingle():
+    """Plays the shortened Tokyo Drift tab on boot."""
+    # Frequencies (Hz)
+    A_S = 466; B = 494; D_S = 622
+    F = 698; F_S = 740; G_S = 831
+    R = 0 # Musical Rest
+
+    # Timings (Sped up for a punchy ~10 second intro)
+    T_LONG = 300
+    T_SHORT = 175
+    P_SHORT = 60   # Pause between notes
+    P_LONG = 200   # Pause between phrases
+
+    # Riff 1: A# B D# A# A#
+    riff_main = [
+        (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
+        (D_S, T_SHORT), (R, P_SHORT), (A_S, T_LONG), (R, P_SHORT),
+        (A_S, T_LONG), (R, P_LONG)
+    ]
+
+    # Riff 2: A# B D# F F
+    riff_alt1 = [
+        (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
+        (D_S, T_SHORT), (R, P_SHORT), (F, T_LONG), (R, P_SHORT),
+        (F, T_LONG), (R, P_LONG)
+    ]
+
+    # Riff 3: G# F# F D# D#
+    riff_alt2 = [
+        (G_S, T_LONG), (R, P_SHORT), (F_S, T_SHORT), (R, P_SHORT),
+        (F, T_SHORT), (R, P_SHORT), (D_S, T_LONG), (R, P_SHORT),
+        (D_S, T_LONG), (R, P_LONG)
+    ]
+
+    # Assemble the shortened tab sequence
+    melody = []
+    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
+    melody.extend(riff_alt1)                     # A# B D# F F
+    for _ in range(2): melody.extend(riff_alt2)  # G# F# F D# D# (x2)
+    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
+
+    # Playback loop with Encoder Button Skip Feature
+    for freq, duration in melody:
+        if was_pressed(): 
+            break # Skip the rest of the song if knob is clicked
+            
+        if freq == 0:
+            buzzer.duty(0)
+            led.value(0)
+        else:
+            buzzer.freq(freq)
+            buzzer.duty(512)
+            led.value(1)
+        time.sleep_ms(duration)
+
+    buzzer.duty(0)
+    led.value(0)
+
+
+def boil_milestone_blip():
+    """
+    Single double-beep + LED flash when boiling point is first reached.
+    Called once mid-simulation as a progress milestone.
+    """
+    for _ in range(2):
+        led.value(1)
+        buzzer.freq(880)
+        buzzer.duty(350)
+        time.sleep_ms(80)
+        buzzer.duty(0)
+        led.value(0)
+        time.sleep_ms(60)
+
+
+def heartbeat_tick():
+    """
+    Double-blink LED only (no buzzer). Called in the last 60 s of cooking
+    to give a visible "almost done" pulse without waking people up.
+    """
+    for _ in range(2):
+        led.value(1)
+        time.sleep_ms(60)
+        led.value(0)
+        time.sleep_ms(80)
+
+
+def pellet_load_flash(pellets_g):
+    """
+    Flash LED to indicate pellet load tier after results are shown:
+      1 flash  = light  (< 200 g)
+      2 flashes = medium (200–599 g)
+      3 flashes = heavy  (≥ 600 g)
+    """
+    if pellets_g < 200:
+        flashes = 1
+    elif pellets_g < 600:
+        flashes = 2
+    else:
+        flashes = 3
+    time.sleep_ms(300)
+    for _ in range(flashes):
+        led.value(1)
+        buzzer.freq(660)
+        buzzer.duty(300)
+        time.sleep_ms(150)
+        buzzer.duty(0)
+        led.value(0)
+        time.sleep_ms(200)
+
+
+# =============================================================================
+# LCD HELPER FUNCTIONS
+# =============================================================================
+
+def lcd_clear():
+    lcd.clear()
+    time.sleep_ms(5)
+
+def lcd_show(line0="", line1="", line2="", line3=""):
+    lcd_clear()
+    lines = [line0, line1, line2, line3]
+    for i, txt in enumerate(lines):
+        if txt:
+            lcd.move_to(0, i)
+            lcd.putstr(txt[:LCD_COLS])
+
+def lcd_write_line(row, text):
+    lcd.move_to(0, row)
+    lcd.putstr(("{:<" + str(LCD_COLS) + "}").format(text[:LCD_COLS]))
+
+def fmt_trunc(text, width=20):
+    if len(text) > width:
+        return text[:width - 1] + "."
+    return text
+
+
+# =============================================================================
+# INTERACTIVE MENU FUNCTIONS
+# =============================================================================
+
+def menu_select(title, options):
+    idx = 0
+    n = len(options)
+    set_encoder_pos(0)
+    last_pos = 0
+    lcd_show(title, "> " + fmt_trunc(options[idx], 18), "", "Turn=Scroll Btn=OK")
+
+    while True:
+        pos = get_encoder_pos()
+        if pos != last_pos:
+            tick_feedback()
+            diff = pos - last_pos
+            last_pos = pos
+            idx = (idx + diff) % n
+            lcd_write_line(1, "> " + fmt_trunc(options[idx], 18))
+            nxt = (idx + 1) % n
+            lcd_write_line(2, "  " + fmt_trunc(options[nxt], 18))
+
+        if was_pressed():
+            tick_feedback()
+            lcd_write_line(3, "OK: " + fmt_trunc(options[idx], 15))
+            time.sleep_ms(300)
+            return (idx, options[idx])
+        time.sleep_ms(20)
+
+def menu_adjust_float(title, unit, default, lo, hi, step=0.5):
+    val = default
+    set_encoder_pos(0)
+    last_pos = 0
+    lcd_show(title, "Value: {:.1f} {}".format(val, unit),
+             "Range: {:.1f}-{:.1f}".format(lo, hi), "Turn=Adj  Btn=OK")
+
+    while True:
+        pos = get_encoder_pos()
+        if pos != last_pos:
+            tick_feedback()
+            diff = pos - last_pos
+            last_pos = pos
+            val += diff * step
+            if val < lo: val = lo
+            if val > hi: val = hi
+            lcd_write_line(1, "Value: {:.1f} {}".format(val, unit))
+
+        if was_pressed():
+            tick_feedback()
+            lcd_write_line(3, "OK: {:.1f} {}".format(val, unit))
+            time.sleep_ms(300)
+            return val
+        time.sleep_ms(20)
+
+def menu_adjust_int(title, unit, default, lo, hi):
+    val = default
+    set_encoder_pos(0)
+    last_pos = 0
+    lcd_show(title, "Value: {} {}".format(val, unit),
+             "Range: {}-{}".format(lo, hi), "Turn=Adj  Btn=OK")
+
+    while True:
+        pos = get_encoder_pos()
+        if pos != last_pos:
+            tick_feedback()
+            diff = pos - last_pos
+            last_pos = pos
+            val += diff
+            if val < lo: val = lo
+            if val > hi: val = hi
+            lcd_write_line(1, "Value: {} {}".format(val, unit))
+
+        if was_pressed():
+            tick_feedback()
+            lcd_write_line(3, "OK: {} {}".format(val, unit))
+            time.sleep_ms(300)
+            return val
+        time.sleep_ms(20)
+
+
+# =============================================================================
+# SAFETY VALIDATION LOGIC
+# =============================================================================
+
+UTENSIL_CAPACITY_L = {
+    "Aluminium Pot 2L": 2.0,
+    "Aluminium Pot 3L": 3.0,
+    "Aluminium Pot 5L": 5.0,
+    "Aluminium Pot 8L": 8.0,
+    "Pressure Cooker 2L": 2.0,
+    "Pressure Cooker 3L": 3.0,
+    "Pressure Cooker 5L": 5.0,
+    "Pressure Cooker 7.5L": 7.5,
+    "Kadhai / Wok 2.5L": 2.5,
+    "Kadhai / Wok 4L": 4.0,
+    "Kadhai / Wok 6L": 6.0,
+    "Stainless Steel Pot 3L": 3.0,
+    "Stainless Steel Pot 5L": 5.0,
+    "Cast Iron Tawa": 0.5,
+    "Cast Iron Frying Pan 26cm": 1.5,
 }
 
-# Safety thresholds
-T_OVERHEAT_C     = 150.0     # C — critical vessel overheat threshold
-M_WATER_DRY      = 0.0       # kg — dry-boil threshold
+# Per-dish utensil type preference: what utensil category is needed
+# Key: part of dish name, Value: required word in utensil name
+DISH_UTENSIL_PREF = {
+    "Roti":   "Tawa",          # Roti needs a Tawa, not a pot
+    "Sambar": "Pot",           # Sambar needs a Pot, not a Tawa
+}
 
-# Lid factors  [WBT v4.2.3, source: 4]
-LID_FACTOR_ON    = 0.15
-LID_FACTOR_OFF   = 1.00
+# Dishes that are beverages (should NOT go in pressure cooker)
+BEVERAGE_DISHES = {"Tea (Chai)", "Coffee", "Boiling Milk"}
 
-# Loop safety cap (prevents infinite loop on pathological inputs)
-MAX_SIMULATION_TIME = 6 * 3600.0  # 6 hours in seconds
+# Realistic max servings per pot capacity bucket (L)
+# Updated to cover ALL utensil sizes defined in UTENSIL_CAPACITY_L
+CAP_MAX_SERVINGS = {
+    0.5: 1,    # Cast Iron Tawa (dry cooking only, 1 roti)
+    1.5: 2,    # Cast Iron Frying Pan (frying dish for 2 people)
+    2.0: 3,    # Aluminium Pot 2L
+    2.5: 4,    # Kadhai / Wok 2.5L
+    3.0: 5,    # Pressure Cooker 3L, Aluminium Pot 3L
+    4.0: 7,    # Kadhai / Wok 4L
+    5.0: 10,   # Pressure Cooker 5L, Aluminium Pot 5L
+    6.0: 12,   # Kadhai / Wok 6L
+    7.5: 16,   # Pressure Cooker 7.5L
+    8.0: 18,   # Aluminium Pot 8L
+}
 
-# Procurement margin on physics-based pellet recommendation
-PELLET_PROCUREMENT_MARGIN = 0.08  # 8 %
+def validate_inputs(inp):
+    """
+    Check for physically impossible or illogical combinations.
+    Returns (error_key, detail_line) tuple if invalid, or None if valid.
+    Severity determines which alarm is triggered in main().
+    """
+    utensil_name = inp["utensil_name"]
+    utensil      = inp["utensil"]
+    dish         = inp["dish"]
+    dish_name    = inp["dish_name"]
+    max_cap      = UTENSIL_CAPACITY_L.get(utensil_name, 5.0)
+    water_l      = inp["m_water_initial"]
+    food_kg      = inp["m_food"]
+    n            = inp["portions"]
+    is_pc        = inp["is_pc"]
+    k_conv       = inp["k_conv_current"]
+    lid          = inp["lid_factor"]
+
+    # ── 1. Physical overflow (HARD) ──────────────────────────────────────────
+    # Total contents (water + food solid mass) exceed pot volume.
+    # Added a 5% tolerance to prevent trace masses (e.g. 0.001kg) from 
+    # failing an exactly full pot.
+    if (water_l + food_kg) > (max_cap * 1.05):
+        return ("overflow",
+                "Tot {:.1f}L > {:.1f}L pot".format(water_l + food_kg, max_cap))
+
+    # ── 2. Too many servings for the pot (HARD) ──────────────────────────────
+    # Each serving for standard dishes needs ~0.3–0.5L. Cap is derived from
+    # pot capacity. This catches "20 people in a 2L pot" scenarios.
+    # Only applies to standard per-person dishes (not smart-unit or variable).
+    if not dish.qty_prompt and not dish.variable_water:
+        n_int = int(n)
+        hard_max = CAP_MAX_SERVINGS.get(max_cap, int(max_cap * 2))
+        if n_int > hard_max:
+            return ("too_many_people",
+                    "{} people in {}L pot".format(n_int, max_cap))
+
+    # ── 3. Pressure Cooker with beverage (SOFT warning) ──────────────────────
+    # Boiling milk/tea/coffee in a PC makes no practical sense and risks
+    # boil-over fouling the pressure valve.
+    if is_pc and dish_name in BEVERAGE_DISHES:
+        return ("pc_beverage",
+                "{} in pressure cooker".format(dish_name[:14]))
+
+    # ── 4. Wrong utensil for Roti (SOFT warning) ─────────────────────────────
+    # Roti is dry-cooked on a Tawa. Using a pot or kadhai gives wrong results.
+    if "Roti" in dish_name and "Tawa" not in utensil_name and "Pan" not in utensil_name:
+        return ("roti_wrong_utensil",
+                "Roti needs a Tawa")
+
+    # ── 5. Pressure Cooker with too little water (HARD) ──────────────────────
+    # PCs need steam. < 0.2L means no steam can build — dangerous in reality.
+    if is_pc and water_l < 0.2:
+        return ("pc_dry",
+                "PC needs >= 0.2L water")
+
+    # ── 6. Open pot in high wind (SOFT warning) ───────────────────────────────
+    # Extremely wasteful — heat blows away. Physics still runs but user
+    # should know this setup wastes a lot of pellets.
+    if k_conv >= 35.0 and lid == main_logic.LID_FACTOR_OFF:
+        return ("wind_open",
+                "Strong wind, lid off")
+
+    # ── 7. Pot mass override is unrealistic (SOFT warning) ───────────────────
+    base_mass = utensil.mass_kg
+    if inp["m_pot"] > 3.0 * base_mass:
+        return ("pot_heavy",
+                "Pot mass seems high")
+    if inp["m_pot"] < 0.3 * base_mass:
+        return ("pot_light",
+                "Pot mass seems low")
+
+    # ── 8. Milk volume > utensil capacity (HARD) ─────────────────────────────
+    # Smart-unit milk: qty is in litres. Check it fits the pot.
+    if dish_name == "Boiling Milk" and dish.qty_is_float:
+        milk_l = water_l + food_kg  # already scaled in collect_inputs
+        if milk_l > (max_cap * 1.05):
+            return ("milk_overflow",
+                    "{:.1f}L milk > {:.1f}L pot".format(milk_l, max_cap))
+
+    # ── 9. Liquid dish on a Tawa / Frying Pan (HARD) ───────────────────────
+    # Tawas and flat pans have no side walls. Any dish with >0.15 kg of
+    # water per serving will simply spill off a flat pan.
+    _NEEDS_WALLS = {"Dal Tadka", "Sambar", "Chicken Curry", "Egg Curry",
+                    "Mix Veg Curry", "Chola (Soaked Chickpea)",
+                    "Rajma (Soaked Red Kidney Bean)", "Normal Rice",
+                    "Plain Water Boiling", "Tea (Chai)", "Coffee",
+                    "Boiling Milk", "Kadhai Paneer"}
+    _FLAT_UTENSILS = {"Cast Iron Tawa", "Cast Iron Frying Pan 26cm"}
+    if dish_name in _NEEDS_WALLS and utensil_name in _FLAT_UTENSILS:
+        return ("liquid_on_tawa",
+                "Flat pan for wet dish")
+
+    # ── 10. Roti in a Pressure Cooker (HARD) ───────────────────────────────
+    # Roti is a dry flatbread. A pressure cooker seals steam inside —
+    # you cannot roast/dry-cook inside a sealed PC. The result would be
+    # soggy uncooked dough, not roti.
+    if "Roti" in dish_name and is_pc:
+        return ("roti_in_pc",
+                "Can't make roti in PC")
+
+    # ── 11. Plain Water Boiling in a Kadhai / Wok (SOFT warning) ────────────
+    # Kadhais are wide and shallow. Boiling large volumes of water in them
+    # leads to extreme evaporation and very fast water loss. The physics
+    # engine will still run, but the result is thermally inefficient.
+    if dish_name == "Plain Water Boiling" and "Kadhai" in utensil_name:
+        return ("water_in_kadhai",
+                "Kadhai not for boiling")
+
+    return None
+
+
+_HARD_ERRORS = {"overflow", "too_many_people", "pc_dry", "milk_overflow",
+                "liquid_on_tawa", "roti_in_pc"}
+
+_FRIENDLY_MSG = {
+    "overflow":          ("Pot is too small!",   "Too much water and",    "food for this pot.",    "Try a bigger pot."),
+    "too_many_people":   ("Too many people!",     "This pot is too small", "for that many folks.",  "Use a bigger pot."),
+    "pc_beverage":       ("Use a normal pot!",    "Tea, coffee & milk",    "don't need a pressure", "cooker. Press OK."),
+    "roti_wrong_utensil":("Wrong pan for Roti!",  "Roti cooks best on",    "a flat Tawa or Pan.",   "Press to continue."),
+    "pc_dry":            ("Not enough water!",    "Pressure cooker needs", "at least 0.2L water.",  "Add more water."),
+    "wind_open":         ("Cover your pot!",      "Strong wind + open pot","wastes a lot of fuel.", "Press to continue."),
+    "pot_heavy":         ("Pot mass too high!",   "Did you set the right", "pot size? Check it.",   "Press to continue."),
+    "pot_light":         ("Pot mass too low!",    "Did you set the right", "pot size? Check it.",   "Press to continue."),
+    "milk_overflow":     ("Too much milk!",        "That much milk won't",  "fit in this pot.",      "Use a bigger pot."),
+    "liquid_on_tawa":    ("Wrong pan!",            "Curries and soups",     "need a deep pot,",      "not a flat tawa."),
+    "roti_in_pc":        ("Roti needs open heat!", "You can't make roti",   "in a sealed pressure",  "cooker. Use Tawa."),
+    "water_in_kadhai":   ("Use a deep pot!",       "Kadhais are shallow.",  "Water evaporates fast.","Try a pot instead."),
+}
 
 
 # =============================================================================
-# SECTION 3b — SHARED PHYSICS HELPERS
+# MAIN SIMULATION FLOW
 # =============================================================================
 
-def _emissivity_for_utensil(utensil):
-    """Material-aware surface emissivity [Incropera Table 7.1]."""
-    if utensil.cp_kj_kgk < 0.55:
-        return 0.55   # cast iron / tawa
-    if utensil.is_pressure:
-        return 0.32   # polished Al body, minimal oxidation
-    return EMISSIVITY_DEFAULT
+def collect_inputs():
+    inp = {}
+    lcd_show("IIT DELHI COOKSTOVE", "  ESP32 Simulator", "    V10 / 1Hz", "Press btn to start")
+    boot_jingle()
+    while not was_pressed():
+        time.sleep_ms(50)
+    tick_feedback()
 
+    dish_names = get_dish_names()
+    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
+    inp["dish_name"] = dish_name
+    dish = get_dish(dish_name)
+    inp["dish"] = dish
 
-def _geometry_profile(utensil_name):
-    """Return (height/diameter ratio, surface-area multiplier) for utensil type."""
-    if "Kadhai" in utensil_name or "Wok" in utensil_name:
-        return (0.45, 1.12)
-    if "Tawa" in utensil_name or "Pan" in utensil_name:
-        return (0.28, 1.30)
-    return (0.65, 1.00)
-
-
-def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor, m_food_kg=0.0):
-    """
-    Reverse-engineer pot dimensions from water mass.
-    Cylinder model: V = pi*r^2*h with utensil-specific h/d ratio.
-    Exposed loss area = side wall + partial top (bottom insulated by stove).
-
-    m_food_kg: total food mass (excluding water). Used to detect liquid-heavy
-    loads where added water is low but the pot is full — in those cases the
-    flame coupling (eta_geom) is slightly under-estimated by the water-volume
-    proxy, so a small conservative correction is applied.
-    """
-    V_m3 = m_water_kg / 1000.0
-    h_over_d, surface_mult = _geometry_profile(utensil_name)
-    d_m = (4.0 * V_m3 / (math.pi * h_over_d)) ** (1.0 / 3.0)
-    h_m = h_over_d * d_m
-    r_m = d_m / 2.0
-    A_side = math.pi * d_m * h_m
-    A_top  = math.pi * r_m ** 2
-    if lid_factor <= LID_FACTOR_ON:
-        top_exposure = 0.30
-    else:
-        top_exposure = 0.85
-    A_m2 = surface_mult * (A_side + top_exposure * A_top)
-    
-    # eta_geom scaling — ORIGINAL formula (reference mass 5.0 kg, exponent 0.35):
-    #   eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
-    # Problem: the original formula capped too early for large pots. We then tried
-    # a reference mass of 8.0 kg and exponent 0.30, which made 5L water boil too slow
-    # (~23 mins) compared to real-life performance (~20 mins).
-    #
-    # FIX: This formula was chosen to bring 5L water performance back to ~21 minutes
-    # (closer to real life). It maintains better behaviour for larger volumes than
-    # the original /5.0 ** 0.35 formula, while remaining conservative for small masses.
-    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 6.0) ** 0.33))
-
-    # ── Liquid-heavy load correction ─────────────────────────────────────────
-    # When added water is very low (<0.3 kg) but total thermal mass is
-    # significant (food + water > 1.5 kg), the pot is likely full of
-    # liquid-heavy food (e.g. dal, curry). The water-volume proxy under-
-    # estimates flame coupling, so we apply a small upward correction
-    # (max +0.08, capped at MAX_EFFICIENCY) to eta_geom.
-    total_mass = m_water_kg + m_food_kg
-    if m_water_kg < 0.3 and total_mass > 1.5:
-        correction = min(0.08, 0.08 * (total_mass - 1.5) / 3.0)
-        eta_geom = min(MAX_EFFICIENCY, eta_geom + correction)
-    # ─────────────────────────────────────────────────────────────────────────
-
-    return {"V_m3": V_m3, "d_m": d_m, "h_m": h_m, "A_m2": A_m2, "eta_geom": eta_geom}
-
-
-def heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity,
-                lid_factor=1.00):
-    """Total convective + radiative heat bleed (W). Used by estimator and loop."""
-    T_pot_K = T_pot_c + 273.15
-    T_amb_K = T_amb_c + 273.15
-    conv_factor = 0.85 + 0.15 * lid_factor
-    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K) * conv_factor
-    P_rad  = emissivity * SIGMA * A_m2 * (T_pot_K ** 4 - T_amb_K ** 4)
-    return P_conv + P_rad
-
-
-def heat_loss_kw(T_pot_c, T_amb_c, A_m2, k_conv, emissivity,
-                 lid_factor=1.00):
-    """Heat bleed in kW (convenience wrapper)."""
-    return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity, lid_factor) / 1000.0
-
-
-def compute_safety_buffer_s(t_heat_s, k_conv, m_water_kg):
-    """
-    Justified post-estimate safety margin (60-120 s).
-    Components:
-      60 s base — 1 Hz discretisation lag
-      up to 30 s — accumulated per-minute step error
-      up to 20 s — outdoor wind tiers
-      up to 10 s — large batches (>8 kg)
-    """
-    buffer = 60.0
-    buffer += min(30.0, 0.04 * t_heat_s)
-    buffer += min(20.0, 5.0 * max(0.0, k_conv / 10.0 - 1.0))
-    buffer += min(10.0, max(0.0, (m_water_kg - 8.0) * 1.5))
-    return min(120.0, max(60.0, buffer))
-
-
-def _transient_preview_tick(T_pot, m_water, m_food, cp_food, m_pot, cp_pot,
-                            P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac):
-    """
-    Execute one 1 Hz physics tick (Steps 2A-2D).
-    Returns (T_pot_new, m_water_new, Q_out_kj).
-    Routing logic is identical to run_1hz_loop Step 2D.
-    """
-    Q_in  = P_in_kw * dt
-    MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
-    Q_out = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity, lid_fac) * dt
-    Q_avail = Q_in - Q_out
-
-    if Q_avail <= 0.0:
-        if MCp_total > 0:
-            T_pot += Q_avail / MCp_total
-    else:
-        if T_pot < 100.0:
-            Q_to_100 = MCp_total * (100.0 - T_pot)
-            if Q_avail <= Q_to_100:
-                T_pot   += Q_avail / MCp_total
-                Q_avail  = 0.0
-            else:
-                T_pot    = 100.0
-                Q_avail -= Q_to_100
-
-        if Q_avail > 0 and m_water > 0:
-            m_evap_potential = (Q_avail / L_V) * lid_fac
-            if m_evap_potential <= m_water:
-                m_water -= m_evap_potential
-                Q_avail  = 0.0
-            else:
-                Q_boil  = (m_water / lid_fac) * L_V
-                m_water = 0.0
-                Q_avail -= Q_boil
-
-        if Q_avail > 0 and m_water <= 0:
-            MCp_dry = (m_food * cp_food) + (m_pot * cp_pot)
-            if MCp_dry > 0:
-                T_pot += Q_avail / MCp_dry
-            Q_avail = 0.0
-
-    return (T_pot, m_water, Q_out)
-
-
-def estimate_cook_time(m_food, cp_food, m_water, m_pot, cp_pot,
-                       t_kinetic_s, P_in_kw, A_m2, k_conv, emissivity,
-                       T_amb, lid_fac):
-    """
-    Shadow 1 Hz transient preview: heat-up to 100 C, then kinetic simmer.
-    Returns timing diagnostics used for the Total Time Estimator.
-    """
-    T_pot = T_amb
-    m_w   = m_water
-    t_elapsed = 0.0
-    t_boil = None
-    Q_out_accum = 0.0
-    heat_cannot_rise = False
-
-    while T_pot < 100.0 and t_elapsed < MAX_SIMULATION_TIME:
-        T_prev = T_pot
-        T_pot, m_w, Q_out = _transient_preview_tick(
-            T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
-            P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
-        )
-        if T_pot <= T_prev and T_pot < 100.0:
-            heat_cannot_rise = True
-            break
-        t_elapsed += dt
-        Q_out_accum += Q_out
-        if T_pot >= 100.0 and t_boil is None:
-            t_boil = t_elapsed
-
-    t_heat_s = t_elapsed
-
-    if not heat_cannot_rise and t_kinetic_s > 0.0:
-        kinetic_ticks = int(t_kinetic_s)
-        for _ in range(kinetic_ticks):
-            if t_elapsed >= MAX_SIMULATION_TIME:
-                break
-            T_pot, m_w, Q_out = _transient_preview_tick(
-                T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
-                P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
-            )
-            t_elapsed += dt
-            Q_out_accum += Q_out
-
-    return {
-        "t_heat_s": t_heat_s,
-        "t_boil_s": t_boil if t_boil is not None else 0.0,
-        "t_preview_s": t_elapsed,
-        "Q_out_accum_kj": Q_out_accum,
-        "heat_cannot_rise": 1.0 if heat_cannot_rise else 0.0,
-        "m_water_end_kg": m_w,
-    }
-
-
-# =============================================================================
-# ZERO STATE  (Phase 1 continued)
-# =============================================================================
-
-def zero_state(inp):
-    inp["t_elapsed_s"]      = 0.0
-    inp["T_pot_c"]          = inp["t_ambient_c"]
-    inp["m_water_current"]  = inp["m_water_initial"]
-    inp["flag_dry_boil"]    = False
-    inp["flag_overheat"]    = False
-    inp["t_boil_reached_s"] = None
-    inp["tick_log"]         = []
-    return inp
-
-
-# =============================================================================
-# PHASE 2 — 1Hz TRANSIENT LOOP (The Core Engine) — UNTOUCHED
-# =============================================================================
-
-def run_1hz_loop(inp):
-    """
-    Phase 2: Execute the 1Hz transient loop.
-    Loop condition: while t_elapsed < inp["t_total_s"].
-    Physics cascade (Steps 2A-2D) is UNCHANGED / PROTECTED.
-    """
-    m_food    = inp["m_food"]
-    cp_food   = inp["cp_food"]
-    m_pot     = inp["m_pot"]
-    cp_pot    = inp["cp_pot"]
-    A         = inp["A_m2"]
-    eta_geom  = inp["eta_geom"]
-    gcv       = inp["gcv_kj_kg"]
-    lid_fac   = inp["lid_factor"]
-    T_amb     = inp["t_ambient_c"]
-    t_total_s = inp["t_total_s"]
-    k_conv    = inp["k_conv_current"]
-    emissivity = inp.get("emissivity", EMISSIVITY_DEFAULT)
-
-    # Step 2A: Power In — constant for the entire run (high-fan rule)
-    P_in_kw = (FAN_HIGH / 3600.0) * gcv * eta_geom
-
-    T_pot            = inp["T_pot_c"]
-    m_water          = inp["m_water_current"]
-    t_elapsed        = inp["t_elapsed_s"]
-    flag_dry         = False
-    flag_over        = False
-    t_boil_reached   = None
-
-    Q_in_kj = 0.0
-    Q_out_kj = 0.0
-    Q_sensible_kj = 0.0
-    Q_evap_kj = 0.0
-
-    log_interval = 60
-    tick_log = []
-    tick = 0
-
-    # ── LOOP CONDITION: strictly absolute-time based ──────────────────────────
-    while t_elapsed < t_total_s:
-
-        T_before = T_pot
-        m_w_before = m_water
-
-        # Step 2A: Power In
-        Q_in = P_in_kw * dt
-
-        # Step 2B: Dynamic Mass (UNCHANGED)
-        MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
-
-        # Step 2C: Heat Bleed (shared helper)
-        Q_out = heat_loss_kw(T_pot, T_amb, A, k_conv, emissivity, lid_fac) * dt
-
-        # Step 2D: Net Energy & State Routing (UNCHANGED — PROTECTED)
-        Q_avail = Q_in - Q_out
-
-        if Q_avail <= 0.0:
-            # Route A: Cooling
-            if MCp_total > 0:
-                T_pot += Q_avail / MCp_total
+    if dish.qty_prompt:
+        if dish.qty_is_float:
+            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            # Route B: Heating & Boiling Sequence
-            if T_pot < 100.0:
-                Q_to_100 = MCp_total * (100.0 - T_pot)
-                if Q_avail <= Q_to_100:
-                    T_pot   += Q_avail / MCp_total
-                    Q_avail  = 0.0
-                else:
-                    T_pot    = 100.0
-                    Q_avail -= Q_to_100
-                    if t_boil_reached is None:
-                        t_boil_reached = t_elapsed + dt
+            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+        inp["portions"] = qty
+    elif dish.variable_water:
+        inp["water_liters"] = menu_adjust_float("2/7 WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["portions"] = 1
+    else:
+        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "people", 4, 1, 20)
+    
+    n = inp["portions"]
+    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    
+    wind_labels = list(main_logic.WIND_TIERS.keys())
+    _, wind_choice = menu_select("4/7 WIND FACTOR", wind_labels)
+    inp["wind_label"] = wind_choice
+    inp["k_conv_current"] = main_logic.WIND_TIERS[wind_choice]
 
-            # Route B2: Evaporation
-            if Q_avail > 0 and m_water > 0:
-                m_evap_potential = (Q_avail / L_V) * lid_fac
-                if m_evap_potential <= m_water:
-                    m_water -= m_evap_potential
-                    Q_avail  = 0.0
-                else:
-                    Q_boil  = (m_water / lid_fac) * L_V
-                    m_water = 0.0
-                    Q_avail -= Q_boil
+    utensil_names = get_utensil_names()
+    _, utensil_name = menu_select("5/7 UTENSIL", utensil_names)
+    utensil = get_utensil(utensil_name)
+    inp["utensil_name"] = utensil_name
+    inp["utensil"] = utensil
+    inp["cp_pot"] = utensil.cp_kj_kgk
+    inp["is_pc"] = utensil.is_pressure
+    inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-            # Route B3: Dry-Boil Runaway
-            if Q_avail > 0 and m_water <= 0:
-                MCp_dry = (m_food * cp_food) + (m_pot * cp_pot)
-                if MCp_dry > 0:
-                    T_pot += Q_avail / MCp_dry
-                Q_avail = 0.0
+    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
-        Q_in_kj  += Q_in
-        Q_out_kj += Q_out
-        dT = T_pot - T_before
-        if dT != 0.0:
-            if m_w_before > 0.0:
-                MCp_track = (m_food * cp_food) + (m_w_before * CP_WATER) + (m_pot * cp_pot)
-            else:
-                MCp_track = (m_food * cp_food) + (m_pot * cp_pot)
-            Q_sensible_kj += MCp_track * dT
-        dm_evap = m_w_before - m_water
-        if dm_evap > 0.0 and lid_fac > 0.0:
-            Q_evap_kj += (dm_evap / lid_fac) * L_V
+    if utensil.is_pressure:
+        inp["lid_factor"] = 0.0
+        inp["lid_label"] = "Sealed (PC)"
+        lcd_show("7/7 LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
+        time.sleep_ms(1000)
+    else:
+        lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
+        _, lid_choice = menu_select("7/7 LID STATE", lid_options)
+        if "ON" in lid_choice:
+            inp["lid_factor"] = main_logic.LID_FACTOR_ON
+            inp["lid_label"] = "Lid ON"
+        else:
+            inp["lid_factor"] = main_logic.LID_FACTOR_OFF
+            inp["lid_label"] = "Lid OFF"
 
-        # ── Advance Clock ─────────────────────────────────────────────────────
-        t_elapsed += dt
+    if dish.variable_water:
+        inp["m_food"]           = dish.food_mass_per_serving_kg
+        inp["cp_food"]          = dish.cp_food_kj_kgk
+        inp["m_water_initial"]  = inp["water_liters"]
+        inp["t_kinetic_base_s"] = 0.0
+    else:
+        inp["m_food"]           = dish.food_mass_per_serving_kg * n
+        inp["cp_food"]          = dish.cp_food_kj_kgk
+        inp["m_water_initial"]  = dish.added_water_per_serving_kg * n
+        
+        kinetic_time_s = 0.0
+        for stage in dish.stages:
+            if stage.stage_type == "kinetic":
+                # Currently set to 1.0 (no correction)
+                kinetic_time_s += stage.duration_s * n * main_logic.PRESSURE_POST_BOIL_FACTOR
+            elif stage.stage_type == "frying":
+                kinetic_time_s += stage.duration_s
+        inp["t_kinetic_base_s"] = kinetic_time_s
 
-        # Safety break
-        if t_elapsed > MAX_SIMULATION_TIME:
-            break
-
-        # Safety flags
-        if m_water <= M_WATER_DRY and not flag_dry:
-            flag_dry = True
-        if T_pot > T_OVERHEAT_C and not flag_over:
-            flag_over = True
-
-        # Sparse telemetry log
-        tick += 1
-        if tick % log_interval == 0 or t_elapsed >= t_total_s:
-            tick_log.append({
-                "t_s": t_elapsed, "T_c": T_pot,
-                "m_w_kg": m_water, "t_remaining_s": max(0.0, t_total_s - t_elapsed),
-            })
-
-    inp["t_elapsed_s"]      = t_elapsed
-    inp["T_pot_c"]          = T_pot
-    inp["m_water_current"]  = m_water
-    inp["flag_dry_boil"]    = flag_dry
-    inp["flag_overheat"]    = flag_over
-    inp["t_boil_reached_s"] = t_boil_reached
-    inp["tick_log"]         = tick_log
-    inp["P_in_kw"]          = P_in_kw
-    inp["Q_in_kj"]          = Q_in_kj
-    inp["Q_out_kj"]         = Q_out_kj
-    inp["Q_sensible_kj"]    = Q_sensible_kj
-    inp["Q_evap_kj"]        = Q_evap_kj
     return inp
 
 
-# =============================================================================
-# PHASE 3 — POST PROCESS (Dynamic Procurement Margin — V5/V10 logic)
-# =============================================================================
-
-def post_process(inp):
+def run_simulation(inp):
     """
-    Phase 3: Pellet procurement recommendation + diagnostics.
-
-    TWO pellet outputs are produced:
-
-    pellets_energy_based_g  [RESEARCH / DEBUG ONLY]
-        Calculated from total energy demand (Q_demand_kj) divided by the
-        effective pellet energy delivery rate (GCV * eta_geom). Represents
-        what thermodynamics alone would suggest. NOT shown to the villager
-        because the stove has no closed-loop control — it cannot modulate
-        feed rate to match energy demand.
-
-    pellets_required_g  [OPERATIONAL — shown to the villager]
-        Calculated from elapsed cook time and the fixed pellet feed rate:
-            pellets = (cook_time_hrs) x FAN_HIGH x 1000 x margin
-        This is the correct recommendation for a constant-feed forced-draft
-        stove. FAN_HIGH = 0.78 kg/hr is the experimentally measured feed
-        rate at HIGH fan setting; the stove runs at this rate for the full
-        cook duration regardless of dish or load.
+    Pure silent calculator — runs the 1Hz physics loop as fast as the CPU
+    allows to compute cook time and pellet load. Nothing is shown on LCD
+    during the loop. The loop is a mathematical predictor, not a timer.
     """
-    t_elapsed = inp["t_elapsed_s"]
-    gcv = inp["gcv_kj_kg"]
+    geom = main_logic.compute_vessel_geometry(
+        inp["m_water_initial"], inp["utensil_name"], inp["lid_factor"]
+    )
+    inp.update(geom)
+
+    lcd_show("CALCULATING...",
+             "Finding your cook",
+             "time and pellet load.",
+             "Please wait...")
+
     eta_geom = inp["eta_geom"]
-    k_conv_current = inp.get("k_conv_current", 10.0)
-    lid_factor = inp.get("lid_factor", 1.0)
-    utensil = inp.get("utensil", None)
+    P_in_kw = (main_logic.FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
+    inp["P_in_kw"] = P_in_kw
 
-    # Total energy demanded by the cook (sensible heat + evaporation + losses)
-    Q_demand_kj = (
-        inp["Q_sensible_kj"] + inp["Q_evap_kj"] + inp["Q_out_kj"]
+    preview = main_logic.estimate_cook_time(
+        m_food=inp["m_food"], cp_food=inp["cp_food"], m_water=inp["m_water_initial"],
+        m_pot=inp["m_pot"], cp_pot=inp["cp_pot"], t_kinetic_s=inp["t_kinetic_base_s"],
+        P_in_kw=P_in_kw, A_m2=inp["A_m2"], k_conv=inp["k_conv_current"],
+        emissivity=inp["emissivity"], T_amb=inp["t_ambient_c"], lid_fac=inp["lid_factor"]
     )
 
-    # ── ENERGY-BASED PELLET ESTIMATE (research/debug only) ────────────────────
-    # How many grams of pellets would thermodynamics alone require?
-    # Effective delivery = GCV (kJ/kg) * combustion efficiency (eta_geom)
-    effective_energy_kj_per_kg = gcv * eta_geom
-    if effective_energy_kj_per_kg > 0:
-        pellets_energy_based_g = (Q_demand_kj / effective_energy_kj_per_kg) * 1000.0
-    else:
-        pellets_energy_based_g = 0.0
-    # ─────────────────────────────────────────────────────────────────────────
+    t_heat_s = preview["t_heat_s"]
+    if preview["heat_cannot_rise"] > 0.5 or t_heat_s <= 0.0:
+        t_heat_s = 0.0
 
-    # ── TIME-BASED PELLET RECOMMENDATION (operational, shown to villager) ─────
-    # The stove operates at a constant, mechanically fixed pellet feed rate
-    # (FAN_HIGH kg/hr). There is no closed-loop control. The correct hopper
-    # load is simply: feed_rate x cook_duration x procurement_margin.
-    pellets_time_g = (t_elapsed / 3600.0) * FAN_HIGH * 1000.0
-    # ─────────────────────────────────────────────────────────────────────────
+    t_safety = main_logic.compute_safety_buffer_s(t_heat_s, inp["k_conv_current"], inp["m_water_initial"])
+    t_total_s = t_heat_s + inp["t_kinetic_base_s"] + t_safety
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DYNAMIC PROCUREMENT MARGIN (Stochastic Environmental Variance)
-    # ═══════════════════════════════════════════════════════════════════════════
+    if t_total_s > 14400:  # > 4 hours
+        inp["invalid_combo_msg"] = ("Time > 4 Hours!", "Physically absurd combo")
+        return inp
 
-    if k_conv_current >= 50.0:
-        # High wind: intense forced convection
-        procurement_margin = 0.12
-        margin_reason = "High Wind (k_conv >= 50.0)"
-    elif lid_factor == 1.0:
-        # Open pot: maximum exposure
-        procurement_margin = 0.10
-        margin_reason = "Open Pot (lid_factor = 1.00)"
-    elif lid_factor < 1.0 and utensil and not utensil.is_pressure:
-        # Covered pot (not pressure cooker)
-        procurement_margin = 0.07
-        margin_reason = "Covered Pot (non-pressure)"
-    elif utensil and utensil.is_pressure:
-        # Pressure cooker: sealed, minimal loss
-        procurement_margin = 0.05
-        margin_reason = "Pressure Cooker (sealed)"
-    else:
-        # Fallback
-        procurement_margin = 0.08
-        margin_reason = "Default"
+    inp["t_heat_est_s"]      = t_heat_s
+    inp["t_boil_est_s"]      = preview["t_boil_s"]
+    inp["t_safety_buffer_s"] = t_safety
+    inp["t_preview_s"]       = preview["t_preview_s"]
+    inp["t_total_s"]         = t_total_s
 
-    # Apply dynamic margin to the operational (time-based) recommendation
-    pellets_with_margin_g = pellets_time_g * (1.0 + procurement_margin)
+    # ── 1Hz PHYSICS LOOP (Actual Simulation) ─────────────────────────────────
+    # We use the full loop on the ESP32. It takes ~5s to run but guarantees
+    # exactly the same results as the software version by correctly tracking
+    # evaporation and energy over time.
+    inp = main_logic.zero_state(inp)
+    inp = main_logic.run_1hz_loop(inp)
+    inp = main_logic.post_process(inp)
 
-    inp["Q_demand_kj"]              = Q_demand_kj
-    # Operational output (villager-facing)
-    inp["pellets_required_g"]       = pellets_with_margin_g
-    inp["pellets_required_kg"]      = pellets_with_margin_g / 1000.0
-    inp["pellets_time_based_g"]     = pellets_time_g
-    # Research/debug output (not shown on LCD)
-    inp["pellets_energy_based_g"]   = pellets_energy_based_g
-    inp["procurement_margin_factor"] = (1.0 + procurement_margin)
-    inp["procurement_margin_pct"]   = procurement_margin * 100.0
-    inp["margin_reason"]            = margin_reason
-
-    inp["t_phase1_s"] = 0.15 * t_elapsed
-    inp["t_phase2_s"] = 0.65 * t_elapsed
-    inp["t_phase3_s"] = 0.20 * t_elapsed
+    if inp["pellets_required_g"] > 1300 or inp["pellets_required_g"] < 50:
+        inp["invalid_combo_msg"] = ("Pellets Out of Bound", "Limit: 50g-1300g")
 
     return inp
+
+
+def run_real_timer(t_total_s, t_boil_s):
+    """
+    Real hardware countdown using time.ticks_ms().
+    This is the ACTUAL cooking timer — one real second = one real second.
+    t_total_s  : total cook duration in seconds (from physics engine)
+    t_boil_s   : simulated boil time (used to fire the boil blip milestone
+                  at the proportionally correct real-time moment)
+    """
+    start_ms = time.ticks_ms()
+    t_total_ms = int(t_total_s * 1000)
+
+    # Pre-compute the real-time boil milestone (proportional)
+    boil_ms = int((t_boil_s / t_total_s) * t_total_ms) if t_boil_s and t_total_s > 0 else -1
+    _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
+
+    lcd_show("COOKING IN PROGRESS",
+             "Starting timer...",
+             "Alarm rings when done",
+             "Do not remove pot")
+    time.sleep_ms(500)
+
+    last_lcd_s = -1
+
+    while True:
+        now_ms    = time.ticks_ms()
+        elapsed_ms = time.ticks_diff(now_ms, start_ms)
+        elapsed_s  = elapsed_ms / 1000.0
+        remaining_s = max(0.0, t_total_s - elapsed_s)
+        remaining_min = remaining_s / 60.0
+
+        # ── Boil milestone blip at proportional real-time moment ──────────────
+        if not _boil_blip_done and elapsed_ms >= boil_ms:
+            boil_milestone_blip()
+            _boil_blip_done = True
+
+        # ── Countdown heartbeat LED in real final 60 seconds ──────────────────
+        if remaining_s <= 60.0:
+            heartbeat_tick()
+
+        # ── Update LCD once per real second ───────────────────────────────────
+        cur_s = int(elapsed_s)
+        if cur_s != last_lcd_s:
+            last_lcd_s = cur_s
+            pct = min(100, int((elapsed_s / t_total_s) * 100))
+            bar_len = 16
+            filled = int(pct / 100.0 * bar_len)
+            bar = "#" * filled + "-" * (bar_len - filled)
+            if remaining_min >= 1.0:
+                lcd_write_line(1, "{:.0f} min remaining".format(remaining_min))
+            else:
+                lcd_write_line(1, "Almost ready!       ")
+            lcd_write_line(2, "[{}]".format(bar))
+            lcd_write_line(3, "{}% done".format(pct))
+
+        # ── Timer complete ─────────────────────────────────────────────────────
+        if elapsed_ms >= t_total_ms:
+            break
+
+        time.sleep_ms(200)  # poll every 200ms for smooth heartbeat
+
+
+def display_results(inp):
+    # ── Step 1: Calculate Physics Suggestion ─────────────────────────────────
+    t_min_suggested = int(inp["t_total_s"] / 60.0)
+    
+    # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
+    lcd_show("PHYSICS SUGGESTION",
+             "Time   : ~{} min".format(t_min_suggested),
+             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"]),
+             "Press BTN to adjust")
+    while not was_pressed(): time.sleep_ms(50)
+    tick_feedback()
+
+    user_min = menu_adjust_int("SET COOK TIME", "min", t_min_suggested, 1, 240)
+    user_total_s = user_min * 60.0
+
+    # ── Step 3: Recalculate Pellets for User's Time ──────────────────────────
+    margin_factor = inp.get("procurement_margin_factor", 1.08)
+    pellets_g = (user_total_s / 3600.0) * main_logic.FAN_HIGH * 1000.0 * margin_factor
+
+    # Hard cap at 1300g per user rules
+    if pellets_g > 1300:
+        pellets_g = 1300
+
+    # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
+    lcd_show("LOAD PELLETS",
+             "Time   : {:.0f} min".format(user_min),
+             "Pellets: {:.0f} g".format(pellets_g),
+             "Press BTN to START")
+
+    while not was_pressed(): time.sleep_ms(50)
+    tick_feedback()
+
+    # ── Step 5: Run the REAL hardware countdown timer ────────────────────────
+    t_boil_s = inp.get("t_boil_reached_s") or 0
+    run_real_timer(user_total_s, t_boil_s)
+
+    # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
+    lcd_show("FOOD IS READY!",
+             "Your food is done.",
+             "Turn off the stove.",
+             "Press to confirm")
+    timer_alarm()
+
+    # ── Step 7: Summary screen ───────────────────────────────────────────────
+    lcd_show("COOK COMPLETE",
+             "Cook time: {:.0f} min".format(user_min),
+             "Pellets used: {:.0f}g".format(pellets_g),
+             "Press to cook again")
+    while not was_pressed(): time.sleep_ms(50)
+    tick_feedback()
+
+    # Pellet load indicator: 1/2/3 LED flashes
+    pellet_load_flash(pellets_g)
+
+
+def main():
+    while True:
+        try:
+            inp = collect_inputs()
+            
+            pellet_names = get_pellet_names()
+            _, pellet_name = menu_select("PELLET TYPE", pellet_names)
+            inp["pellet_name"] = pellet_name
+            pellet = get_pellet(pellet_name)
+            inp["pellet"] = pellet
+            inp["gcv_kj_kg"] = pellet.conservative_gcv_kj
+
+            # Run all validation checks
+            err = validate_inputs(inp)
+            if err:
+                err_key, detail = err
+                msg = _FRIENDLY_MSG.get(err_key, ("Invalid setup!", detail, "Please try again.", "Press to go back."))
+                lcd_show(msg[0], msg[1], msg[2], msg[3])
+                if err_key in _HARD_ERRORS:
+                    invalid_combo_alarm()  # 3 rapid beeps — must fix before continuing
+                    continue               # restart wizard
+                else:
+                    warn_alarm()           # 2 soft beeps — advisory, still runs
+                    # fall through to run simulation anyway
+
+            inp = run_simulation(inp)
+            display_results(inp)
+
+        except Exception as e:
+            lcd_show("Something went wrong",
+                     "Please restart the",
+                     "device and try again.",
+                     "Press to restart")
+            while not was_pressed(): time.sleep_ms(50)
+            tick_feedback()
+
+main()
