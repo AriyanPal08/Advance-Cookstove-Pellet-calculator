@@ -1,3 +1,9 @@
+changes V11 coming soon 
+this major calculation will include all the major overamp in the system
+
+
+
+
 Biomass Cookstove Pellet Calculator — v10 Change Documentation
 
 Version: 10.0
