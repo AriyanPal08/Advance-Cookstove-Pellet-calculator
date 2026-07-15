@@ -598,7 +598,7 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("IIT DELHI COOKSTOVE", "  ESP32 Simulator", "    V10 / 1Hz", "Press btn to start")
+    lcd_show("WELCOME", "FDS COOKSTOVE", "    V10 / 1Hz", "Press btn to start")
     boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
@@ -690,9 +690,8 @@ def run_simulation(inp):
     inp.update(geom)
 
     lcd_show("CALCULATING...",
-             "Finding your cook",
-             "time and pellet load.",
-             "Please wait...")
+             "Please wait..."
+             )
 
     eta_geom = inp["eta_geom"]
     P_in_kw = (main_logic.FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
@@ -752,9 +751,8 @@ def run_real_timer(t_total_s, t_boil_s):
     _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
 
     lcd_show("COOKING IN PROGRESS",
-             "Starting timer...",
-             "Alarm rings when done",
-             "Do not remove pot")
+             "Starting timer..."
+             )
     time.sleep_ms(500)
 
     last_lcd_s = -1
@@ -802,10 +800,9 @@ def display_results(inp):
     t_min_suggested = int(inp["t_total_s"] / 60.0)
     
     # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
-    lcd_show("PHYSICS SUGGESTION",
-             "Time   : ~{} min".format(t_min_suggested),
-             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"]),
-             "Press BTN to adjust")
+    lcd_show("Time   : ~{} min".format(t_min_suggested),
+             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"])
+             )
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
@@ -821,10 +818,9 @@ def display_results(inp):
         pellets_g = 1300
 
     # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
-    lcd_show("LOAD PELLETS",
-             "Time   : {:.0f} min".format(user_min),
-             "Pellets: {:.0f} g".format(pellets_g),
-             "Press BTN to START")
+    lcd_show("Time   : {:.0f} min".format(user_min),
+             "Pellets: {:.0f} g".format(pellets_g)
+             )
 
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
@@ -834,17 +830,14 @@ def display_results(inp):
     run_real_timer(user_total_s, t_boil_s)
 
     # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
-    lcd_show("FOOD IS READY!",
-             "Your food is done.",
-             "Turn off the stove.",
-             "Press to confirm")
+    lcd_show("Your food is done.",
+             "Turn off the stove."
+             )
     timer_alarm()
 
     # ── Step 7: Summary screen ───────────────────────────────────────────────
-    lcd_show("COOK COMPLETE",
-             "Cook time: {:.0f} min".format(user_min),
-             "Pellets used: {:.0f}g".format(pellets_g),
-             "Press to cook again")
+    lcd_show("COOK COMPLETE"
+             )
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
