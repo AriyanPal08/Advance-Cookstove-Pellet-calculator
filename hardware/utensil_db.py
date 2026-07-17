@@ -24,15 +24,11 @@ class Utensil:
         self.is_pressure = is_pressure
         self.material_note = material_note
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # MASTER UTENSIL DATABASE — 23 entries
 # All masses verified against Hawkins/Prestige 2023-2024 datasheets.
-# ═══════════════════════════════════════════════════════════════════════════════
-
 UTENSIL_DB = {
 
-    # ── ALUMINIUM POTS (Open/Covered) — Hawkins Neona / Classic ──────────────
+    #ALUMINIUM POTS (Open/Covered) — Hawkins Neona / Classic
     "Aluminium Pot 1L": Utensil(
         name="Aluminium Pot 1L",
         mass_kg=0.45,
@@ -76,7 +72,7 @@ UTENSIL_DB = {
         is_pressure=False,
     ),
 
-    # ── ALUMINIUM PRESSURE COOKERS — Hawkins Classic / Prestige ──────────────
+    # ALUMINIUM PRESSURE COOKERS — Hawkins Classic / Prestige
     "Pressure Cooker 1.5L": Utensil(
         name="Pressure Cooker 1.5L",
         mass_kg=1.00,
@@ -120,7 +116,7 @@ UTENSIL_DB = {
         is_pressure=True,
     ),
 
-    # ── ALUMINIUM KADHAIS (Woks) — Hawkins range ────────────────────────────
+    # ALUMINIUM KADHAIS — Hawkins range 
     "Kadhai / Wok 1.5L": Utensil(
         name="Kadhai / Wok 1.5L",
         mass_kg=0.55,
@@ -157,7 +153,7 @@ UTENSIL_DB = {
         is_pressure=False,
     ),
 
-    # ── CAST IRON (Tawa / Frying Pan) ────────────────────────────────────────
+    #  CAST IRON (Tawa / Frying Pan)
     "Cast Iron Tawa": Utensil(
         name="Cast Iron Tawa",
         mass_kg=1.80,
@@ -180,7 +176,7 @@ UTENSIL_DB = {
         is_pressure=False,
     ),
 
-    # ── STAINLESS STEEL 304 (Premium) — Prestige range ──────────────────────
+    # STAINLESS STEEL 304 (Premium) — Prestige range 
     "Stainless Steel Pot 3L": Utensil(
         name="Stainless Steel Pot 3L",
         mass_kg=1.10,
@@ -204,9 +200,7 @@ UTENSIL_DB = {
     ),
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # UTENSIL CATEGORIES — Ordered grouping for two-step menu selection
-# ═══════════════════════════════════════════════════════════════════════════════
 
 UTENSIL_CATEGORIES = [
     ("Kadhai / Wok", [
