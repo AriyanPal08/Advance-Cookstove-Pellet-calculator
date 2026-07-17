@@ -140,7 +140,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    # ── ROTI (per single roti — v10 Smart Units) ────────────────────────────
+    #  ROTI
     # Cp = 2.66 kJ/kg-K  (dough: (90/126)*2.05 + (36/126)*4.171)
     "Roti": DishProfile(
         name="Roti",
@@ -159,7 +159,7 @@ FOOD_DB = {
         qty_default=4.0,
     ),
 
-    # ── TEA (CHAI) ───────────────────────────────────────────────────────────
+    # TEA (CHAI) 
     # Cp = 2.86 kJ/kg-K  (solids proxy: Xp~0.05, Xf~0.06, Xc~0.87, Xa~0.02)
     "Tea (Chai)": DishProfile(
         name="Tea (Chai)",
@@ -190,7 +190,7 @@ FOOD_DB = {
         category="Lentil-Vegetable Stew",
     ),
 
-    # ── COFFEE ───────────────────────────────────────────────────────────────
+    # COFFEE
     # Cp = 1.70 kJ/kg-K  (proxy: Xc~0.80, Xp~0.12, Xf~0.02, Xa~0.06)
     "Coffee": DishProfile(
         name="Coffee",
@@ -204,7 +204,7 @@ FOOD_DB = {
         category="Beverage",
     ),
 
-    # ── MIX VEG CURRY ────────────────────────────────────────────────────────
+    # MIX VEG CURRY
     # Cp = 3.76 kJ/kg-K  (composite: potato, carrot, beans, peas)
     "Mix Veg Curry": DishProfile(
         name="Mix Veg Curry",
@@ -220,7 +220,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    # ── EGG CURRY ────────────────────────────────────────────────────────────
+    # EGG CURRY
     # Cp = 3.67 kJ/kg-K  (composite: (110/150)*3.60 + (40/150)*3.85)
     "Egg Curry": DishProfile(
         name="Egg Curry",
@@ -236,7 +236,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    # ── PLAIN WATER BOILING (variable_water=True) ────────────────────────────
+    # PLAIN WATER BOILING (variable_water=True)
     # Cp = 4.171 kJ/kg-K  (trace solids approximated as water)
     "Plain Water Boiling": DishProfile(
         name="Plain Water Boiling",
@@ -250,7 +250,7 @@ FOOD_DB = {
         variable_water=True,
     ),
 
-    # ── CHOLA (SOAKED CHICKPEA) ──────────────────────────────────────────────
+    # CHOLA (SOAKED CHICKPEA)
     # Cp = 3.10 kJ/kg-K  (Xw=0.68, Xp=0.12, Xc=0.20) [Choi-Okos; Singh 2007]
     "Chola (Soaked Chickpea)": DishProfile(
         name="Chola (Soaked Chickpea)",
@@ -265,7 +265,7 @@ FOOD_DB = {
         category="Legume (Soaked)",
     ),
 
-    # ── RAJMA (SOAKED RED KIDNEY BEAN) ───────────────────────────────────────
+    # RAJMA (SOAKED RED KIDNEY BEAN)
     # Cp = 3.10 kJ/kg-K  (Xw~0.68, Xp~0.12, Xc~0.20) [Singh 2007]
     "Rajma (Soaked Red Kidney Bean)": DishProfile(
         name="Rajma (Soaked Red Kidney Bean)",
@@ -280,7 +280,7 @@ FOOD_DB = {
         category="Legume (Soaked)",
     ),
 
-    # ── KADHAI PANEER ────────────────────────────────────────────────────────
+    #  KADHAI PANEER 
     # Cp = 3.25 kJ/kg-K  (composite: 50% paneer + 50% gravy)
     "Kadhai Paneer": DishProfile(
         name="Kadhai Paneer",
