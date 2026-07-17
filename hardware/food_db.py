@@ -295,7 +295,7 @@ FOOD_DB = {
         category="Paneer Curry",
     ),
 
-    # ── ALOO GOBI (Potato-Cauliflower Curry) ─────────────────────────────────
+    # ALOO GOBI (Potato-Cauliflower Curry) 
     # Cp = 3.664 kJ/kg-K  (60:40 potato:cauliflower composite)
     # Potato (IFCT 2017): Xw=0.74, Xp=0.02, Xf=0.001, Xc=0.22, Xa=0.01
     # Cauliflower (IFCT 2017): Xw=0.91, Xp=0.025, Xf=0.003, Xc=0.05, Xa=0.008
@@ -314,7 +314,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    # ── ALOO MATAR (Potato-Peas Curry) ───────────────────────────────────────
+    # ALOO MATAR (Potato-Peas Curry) 
     # Cp = 3.485 kJ/kg-K  (50:50 potato:peas composite)
     # Potato+Peas (IFCT 2017): Xw=0.73, Xp=0.07, Xf=0.004, Xc=0.18, Xa=0.01
     # Stages: Potato 8-15 min, Peas 3-5 min → weighted ~10 min [6]
@@ -332,7 +332,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    # ── DAL FRY (Masoor/Moong Dal) ───────────────────────────────────────────
+    #  DAL FRY (Masoor/Moong Dal)
     # Cp = 1.956 kJ/kg-K  (IFCT 2017: Xw=0.10, Xp=0.25, Xf=0.008, Xc=0.59, Xa=0.03)
     # Split lentils soften faster than whole toor dal [8]
     "Dal Fry": DishProfile(
@@ -349,7 +349,7 @@ FOOD_DB = {
         category="Lentil Dish",
     ),
 
-    # ── FISH CURRY ───────────────────────────────────────────────────────────
+    # FISH CURRY 
     # Cp = 3.655 kJ/kg-K  (Rohu fish + onion-tomato gravy composite)
     # Rohu (IFCT 2017): Xw=0.76, Xp=0.17, Xf=0.02, Xc=0.01, Xa=0.013
     # Fish myosin denatures at 39-50 C (Ofstad et al., 1996) [7]
@@ -368,7 +368,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    # ── PANEER BUTTER MASALA ─────────────────────────────────────────────────
+    # PANEER BUTTER MASALA
     # Cp = 3.133 kJ/kg-K  (Paneer + tomato-cream gravy composite)
     # Paneer (IFCT 2017): Xw=0.53, Xp=0.18, Xf=0.22, Xc=0.03, Xa=0.02
     # Same cooking pattern as Kadhai Paneer [6]
@@ -385,7 +385,7 @@ FOOD_DB = {
         category="Paneer Curry",
     ),
 
-    # ── KHICHDI (Rice + Moong Dal) ───────────────────────────────────────────
+    # KHICHDI (Rice + Moong Dal)
     # Cp = 1.937 kJ/kg-K  (60:40 rice:moong composite, IFCT 2017)
     # Same grain-in-water pattern as Normal Rice [8]
     "Khichdi": DishProfile(
@@ -401,7 +401,7 @@ FOOD_DB = {
         category="Staple Grain",
     ),
 
-    # ── POHA (Flattened Rice) ────────────────────────────────────────────────
+    # POHA (Flattened Rice) 
     # Cp = 1.932 kJ/kg-K  (IFCT 2017: Xw=0.12, Xp=0.065, Xf=0.013, Xc=0.77, Xa=0.015)
     # Pre-flattened, already partially gelatinized during manufacturing [8]
     "Poha": DishProfile(
@@ -417,7 +417,7 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # ── UPMA (Semolina) ──────────────────────────────────────────────────────
+    # UPMA (Semolina)
     # Cp = 1.927 kJ/kg-K  (IFCT 2017: Xw=0.11, Xp=0.10, Xf=0.005, Xc=0.74, Xa=0.01)
     # Fine semolina gelatinizes rapidly once water is added [8]
     "Upma": DishProfile(
@@ -433,7 +433,7 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # ── MAGGI / INSTANT NOODLES ──────────────────────────────────────────────
+    # MAGGI / INSTANT NOODLES
     # Cp = 1.890 kJ/kg-K  (wheat noodle proxy, IFCT 2017: Xw=0.10, Xp=0.095, Xf=0.015, Xc=0.76, Xa=0.02)
     # Pre-fried noodles rehydrate rapidly — 2 min post-boil (manufacturer spec)
     "Maggi": DishProfile(
@@ -448,7 +448,7 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # ── BOILING MILK (v10 dry-solids model) ──────────────────────────────────
+    # BOILING MILK (v10 dry-solids model)
     # Cp = 1.50 kJ/kg-K (solids-only: Xp=0.246, Xf=0.285, Xc=0.377, Xa=0.077)
     # food_mass = 0.130 kg dry solids per litre
     # added_water = 0.870 kg inherent water per litre
