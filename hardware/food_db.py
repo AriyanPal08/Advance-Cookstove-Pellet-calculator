@@ -123,7 +123,7 @@ FOOD_DB = {
         category="Lentil Dish",
     ),
 
-    # ── CHICKEN CURRY ────────────────────────────────────────────────────────
+    # CHICKEN CURRY 
     # Cp = 3.74 kJ/kg-K  (mass-weighted: 120g chicken + 60g onion + 40g tomato)
     "Chicken Curry": DishProfile(
         name="Chicken Curry",
