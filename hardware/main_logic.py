@@ -46,13 +46,22 @@ EMISSIVITY_DEFAULT = 0.35    # — oxidised aluminium [Incropera Table 7.1]
 CP_WATER         = 4.184     # kJ/kg-K — specific heat of water (NIST, ~60 C)
 
 # ============================================================
-# PRESSURE COOKER POST-BOIL CORRECTION (PLACEHOLDER)
+# PRESSURE COOKER POST-BOIL CORRECTION
 # ============================================================
-# Currently set to 1.0 (no correction).
-# This exists so future pressure-cooker experiments can calibrate
-# a reduction factor. It is intentionally left at 1.0 because only
-# one validation dataset currently exists.
-PRESSURE_POST_BOIL_FACTOR = 1.0
+# Applied ONLY when the selected utensil is a pressure cooker
+# (is_pc = True). Open-pot kinetic durations are unmodified.
+#
+# Derivation (Theoretical Arrhenius equation & Experimental alignment):
+#   - Starch gelatinization activation energy (Ea) ~100 kJ/mol
+#     (Spies & Hoseney, 1982; Lund & Wirakartakusumah, 1984).
+#   - At 120 C (sealed PC, ~15 psi gauge, 393.15 K) vs 100 C (373.15 K):
+#     Rate ratio = exp[(100000/8.314) * (1/373.15 - 1/393.15)] = 5.15.
+#   - Since the reaction is 5.15x faster, the required kinetic time
+#     is reduced to 1/5.15 = 0.194 of the open pot time.
+#   - This 0.20 factor correctly brings the 2L PC Rice (4 pax) cook
+#     time down to ~13.5 min, satisfying the experimental constraint
+#     of < 14 min (prevents bottom burning at 16 min).
+PRESSURE_POST_BOIL_FACTOR = 0.20
 
 # Wind Factor tiers — convection coefficient h (W/m2-K)  [source: 3]
 WIND_TIERS = {
@@ -123,16 +132,12 @@ def compute_vessel_geometry(m_water_kg, utensil_name, lid_factor, m_food_kg=0.0)
         top_exposure = 0.85
     A_m2 = surface_mult * (A_side + top_exposure * A_top)
     
-    # eta_geom scaling — ORIGINAL formula (reference mass 5.0 kg, exponent 0.35):
-    #   eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.35))
-    # Problem: the original formula capped too early for large pots. We then tried
-    # a reference mass of 8.0 kg and exponent 0.30, which made 5L water boil too slow
-    # (~23 mins) compared to real-life performance (~20 mins).
-    #
-    # FIX: This formula was chosen to bring 5L water performance back to ~21 minutes
-    # (closer to real life). It maintains better behaviour for larger volumes than
-    # the original /5.0 ** 0.35 formula, while remaining conservative for small masses.
-    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 6.0) ** 0.33))
+    # eta_geom scaling — Calibrated to WBT 5L
+    #   Using a reference mass of 5.0 kg and an exponent of 0.20,
+    #   the stove reaches its max thermal efficiency at 5L load.
+    #   This was explicitly matched to the IIT Delhi WBT where 5L water
+    #   in an 8L pot (lid off) boiled in exactly 18 minutes.
+    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.20))
 
     # ── Liquid-heavy load correction ─────────────────────────────────────────
     # When added water is very low (<0.3 kg) but total thermal mass is
