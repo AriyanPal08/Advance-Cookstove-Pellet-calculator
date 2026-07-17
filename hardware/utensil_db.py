@@ -1,4 +1,4 @@
-# =============================================================================
+
 # hardware/utensil_db.py — MicroPython Port (ESP32)
 # Cookware Vessel Database — v5 Expanded (Hawkins/Prestige Specs)
 # Converted from @dataclass(frozen=True) to plain __init__ class.
@@ -8,8 +8,6 @@
 # [1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
 # [2] NIST WebBook — Aluminium thermophysical properties.
 # [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7th ed.
-# =============================================================================
-
 # Material-specific heat capacities (kJ/kg-K)
 CP_ALUM = 0.897          # Aluminium [NIST WebBook, Incropera Table A.1]
 CP_CAST_IRON = 0.460     # Cast Iron [Incropera Table A.1]
