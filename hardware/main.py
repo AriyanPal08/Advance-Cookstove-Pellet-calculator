@@ -1,19 +1,18 @@
-# =============================================================================
+
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
-#
+
 # HARDWARE WIRING:
 #   I2C LCD 20x4:  SDA=21, SCL=22
 #   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
 #   LED:           Pin 26
 #   Buzzer:        Pin 27 (PWM)
-#
+
 # ALARM BEHAVIORS:
 #   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
 #   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
 #   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
 #   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
-# =============================================================================
 
 import machine
 import time
