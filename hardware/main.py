@@ -605,33 +605,33 @@ def collect_inputs():
     tick_feedback()
 
     dish_names = get_dish_names()
-    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
+    _, dish_name = menu_select("SELECT DISH", dish_names)
     inp["dish_name"] = dish_name
     dish = get_dish(dish_name)
     inp["dish"] = dish
 
     if dish.qty_prompt:
         if dish.qty_is_float:
-            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
+            qty = menu_adjust_float( dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+            qty = float(menu_adjust_int(dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
         inp["portions"] = qty
     elif dish.variable_water:
-        inp["water_liters"] = menu_adjust_float("2/7 WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["water_liters"] = menu_adjust_float("WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
         inp["portions"] = 1
     else:
-        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "people", 4, 1, 20)
+        inp["portions"] = menu_adjust_int("SERVINGS", "people", 4, 1, 20)
     
     n = inp["portions"]
-    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    inp["t_ambient_c"] = menu_adjust_float("AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
     
     wind_labels = list(main_logic.WIND_TIERS.keys())
-    _, wind_choice = menu_select("4/7 WIND FACTOR", wind_labels)
+    _, wind_choice = menu_select("WIND FACTOR", wind_labels)
     inp["wind_label"] = wind_choice
     inp["k_conv_current"] = main_logic.WIND_TIERS[wind_choice]
 
     utensil_names = get_utensil_names()
-    _, utensil_name = menu_select("5/7 UTENSIL", utensil_names)
+    _, utensil_name = menu_select("UTENSIL", utensil_names)
     utensil = get_utensil(utensil_name)
     inp["utensil_name"] = utensil_name
     inp["utensil"] = utensil
@@ -639,16 +639,16 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
         inp["lid_label"] = "Sealed (PC)"
-        lcd_show("7/7 LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
+        lcd_show("LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
         time.sleep_ms(1000)
     else:
         lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
-        _, lid_choice = menu_select("7/7 LID STATE", lid_options)
+        _, lid_choice = menu_select("LID STATE", lid_options)
         if "ON" in lid_choice:
             inp["lid_factor"] = main_logic.LID_FACTOR_ON
             inp["lid_label"] = "Lid ON"
@@ -669,10 +669,12 @@ def collect_inputs():
         kinetic_time_s = 0.0
         for stage in dish.stages:
             if stage.stage_type == "kinetic":
-                # Currently set to 1.0 (no correction)
-                kinetic_time_s += stage.duration_s * n * main_logic.PRESSURE_POST_BOIL_FACTOR
+                if inp["is_pc"]:
+                    kinetic_time_s += stage.duration_s * main_logic.PRESSURE_POST_BOIL_FACTOR
+                else:
+                    kinetic_time_s += stage.duration_s
             elif stage.stage_type == "frying":
-                kinetic_time_s += stage.duration_s * n
+                kinetic_time_s += stage.duration_s
         inp["t_kinetic_base_s"] = kinetic_time_s
 
     return inp
@@ -690,7 +692,6 @@ def run_simulation(inp):
     inp.update(geom)
 
     lcd_show("CALCULATING...",
-             "Please wait..."
              )
 
     eta_geom = inp["eta_geom"]
@@ -751,7 +752,6 @@ def run_real_timer(t_total_s, t_boil_s):
     _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
 
     lcd_show("COOKING IN PROGRESS",
-             "Starting timer..."
              )
     time.sleep_ms(500)
 
@@ -800,8 +800,9 @@ def display_results(inp):
     t_min_suggested = int(inp["t_total_s"] / 60.0)
     
     # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
-    lcd_show("Time   : ~{} min".format(t_min_suggested),
-             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"])
+    lcd_show(
+             "Time   : ~{} min".format(t_min_suggested),
+             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"]),
              )
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
@@ -818,8 +819,9 @@ def display_results(inp):
         pellets_g = 1300
 
     # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
-    lcd_show("Time   : {:.0f} min".format(user_min),
-             "Pellets: {:.0f} g".format(pellets_g)
+    lcd_show(
+             "Time   : {:.0f} min".format(user_min),
+             "Pellets: {:.0f} g".format(pellets_g),
              )
 
     while not was_pressed(): time.sleep_ms(50)
@@ -830,13 +832,16 @@ def display_results(inp):
     run_real_timer(user_total_s, t_boil_s)
 
     # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
-    lcd_show("Your food is done.",
+    lcd_show(
+             "Your food is done.",
              "Turn off the stove."
              )
     timer_alarm()
 
     # ── Step 7: Summary screen ───────────────────────────────────────────────
-    lcd_show("COOK COMPLETE"
+    lcd_show(
+             "Cook time: {:.0f} min".format(user_min),
+             "Pellets used: {:.0f}g".format(pellets_g),
              )
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
@@ -875,9 +880,8 @@ def main():
 
         except Exception as e:
             lcd_show("Something went wrong",
-                     "Please restart the",
-                     "device and try again.",
-                     "Press to restart")
+                     "Please restart"
+                     )
             while not was_pressed(): time.sleep_ms(50)
             tick_feedback()
 
