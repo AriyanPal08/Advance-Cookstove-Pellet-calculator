@@ -4,7 +4,6 @@
 # Converted from @dataclass(frozen=True) to plain __init__ classes.
 # All Cp, mass, stage duration, and Smart Unit values preserved exactly.
 # cp_source_note / water_source_note stripped to save ESP32 RAM.
-#
 # SOURCES:
 # [1] Choi & Okos (1986). Food Eng. Process Appl., 1, 93-101.
 # [2] ICMR-NIN (2017). Indian Food Composition Tables (IFCT 2017).
@@ -13,8 +12,6 @@
 # [5] Singh (2007). Hydration kinetics of chickpea and blackgram.
 # [6] McGee, H. (2004). On Food and Cooking, 2nd ed. Scribner.
 # [7] Ofstad et al. (1996). Myosin denaturation in fish muscle.
-
-
 # Cp of water at T=60 C midpoint [Choi & Okos 1986]
 CP_WATER_KJ_KGK = 4.171
 DELTA_T_K = 75.0   # 100 C - 25 C ambient
