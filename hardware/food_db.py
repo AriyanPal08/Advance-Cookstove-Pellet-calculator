@@ -83,8 +83,6 @@ class DishProfile:
             simmering_s=0,
         )
 
-
-# ===========================================================================
 # MASTER FOOD DATABASE — 23 dishes
 # All Cp values: Choi & Okos (1986) at T=60 C, ICMR-NIN IFCT 2017.
 # Component Cp at 60 C: Water=4.1707, Protein=2.0807, Fat=2.0726,
@@ -93,7 +91,7 @@ class DishProfile:
 
 FOOD_DB = {
 
-    # ── MILLED RICE ──────────────────────────────────────────────────────────
+    #  MILLED RICE
     # Cp = 2.04 kJ/kg-K  (Xw=0.137, Xp=0.075, Xf=0.005, Xc=0.774, Xa=0.006)
     "Normal Rice": DishProfile(
         name="Normal Rice",
@@ -108,7 +106,7 @@ FOOD_DB = {
         category="Staple Grain",
     ),
 
-    # ── DAL TADKA ────────────────────────────────────────────────────────────
+    # DAL TADKA 
     # Cp = 1.95 kJ/kg-K  (Xw=0.104, Xp=0.240, Xf=0.013, Xc=0.567, Xa=0.035)
     "Dal Tadka": DishProfile(
         name="Dal Tadka",
