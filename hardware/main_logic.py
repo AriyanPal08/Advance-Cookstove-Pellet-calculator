@@ -1,28 +1,22 @@
-# =============================================================================
+
 # hardware/main_logic.py — MicroPython Port (ESP32)
 # 1Hz Discrete Transient Biomass Cookstove Simulator
 # IIT Delhi - Department of Energy Studies
-#
 # ALL PHYSICS FUNCTIONS AND CONSTANTS PRESERVED BYTE-FOR-BYTE.
 # Terminal UI (ANSI codes, prompts, menus, print_receipt) REMOVED.
 # Only pure computation functions remain for hardware/main.py to call.
-#
 # SOURCES:
 # [1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
 # [2] NIST WebBook — Aluminium thermophysical properties.
 # [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7e.
 # [4] WBT v4.2.3 (2017). Clean Cooking Alliance.
 # [5] Choi & Okos (1986); ICMR-NIN (2017).
-# =============================================================================
-#
-# ── MODEL SCOPE ──────────────────────────────────────────────────────────────
+# MODEL SCOPE
 # This model is designed for constant-feed, forced-draft pellet stoves
 # operating at a fixed HIGH fan setting. There is no closed-loop pellet
 # control: the feed rate is mechanically fixed. The model serves as a
 # decision-support tool for hopper loading — it tells the user how many
 # grams of pellets to load before cooking, not during.
-# ─────────────────────────────────────────────────────────────────────────────
-
 import math
 
 from food_db    import FOOD_DB, DishProfile, get_dish_names
