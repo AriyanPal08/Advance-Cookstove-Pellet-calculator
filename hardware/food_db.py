@@ -1,4 +1,4 @@
-# =============================================================================
+
 # hardware/food_db.py — MicroPython Port (ESP32)
 # Biomass Cookstove Food & Dish Database — v10
 # Converted from @dataclass(frozen=True) to plain __init__ classes.
@@ -13,7 +13,7 @@
 # [5] Singh (2007). Hydration kinetics of chickpea and blackgram.
 # [6] McGee, H. (2004). On Food and Cooking, 2nd ed. Scribner.
 # [7] Ofstad et al. (1996). Myosin denaturation in fish muscle.
-# =============================================================================
+
 
 # Cp of water at T=60 C midpoint [Choi & Okos 1986]
 CP_WATER_KJ_KGK = 4.171
