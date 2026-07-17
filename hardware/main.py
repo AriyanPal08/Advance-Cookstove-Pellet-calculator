@@ -1,18 +1,19 @@
-
+# =============================================================================
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
-
+#
 # HARDWARE WIRING:
-#   I2C LCD 20x4:  SDA=21, SCL=22
+#   I2C LCD 16x2:  SDA=21, SCL=22
 #   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
 #   LED:           Pin 26
 #   Buzzer:        Pin 27 (PWM)
-
+#
 # ALARM BEHAVIORS:
 #   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
 #   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
 #   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
 #   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
+# =============================================================================
 
 import machine
 import time
@@ -20,7 +21,8 @@ import math
 
 from food_db    import FOOD_DB, get_dish_names, get_dish
 from pellet_db  import PELLET_DB, get_pellet_names, get_pellet
-from utensil_db import UTENSIL_DB, get_utensil_names, get_utensil
+from utensil_db import (UTENSIL_DB, get_utensil_names, get_utensil,
+                        get_category_names, get_utensils_in_category)
 import main_logic
 
 # =============================================================================
@@ -34,8 +36,8 @@ try:
     time.sleep_ms(200)
     from esp8266_i2c_lcd import I2cLcd
     LCD_ADDR = 0x27
-    LCD_ROWS = 4
-    LCD_COLS = 20
+    LCD_ROWS = 2
+    LCD_COLS = 16
     lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
 except Exception as e:
     # LCD initialization failed — use buzzer to alert user
@@ -315,19 +317,20 @@ def lcd_clear():
     lcd.clear()
     time.sleep_ms(5)
 
-def lcd_show(line0="", line1="", line2="", line3=""):
+def lcd_show(line0="", line1=""):
     lcd_clear()
-    lines = [line0, line1, line2, line3]
-    for i, txt in enumerate(lines):
-        if txt:
-            lcd.move_to(0, i)
-            lcd.putstr(txt[:LCD_COLS])
+    if line0:
+        lcd.move_to(0, 0)
+        lcd.putstr(line0[:LCD_COLS])
+    if line1:
+        lcd.move_to(0, 1)
+        lcd.putstr(line1[:LCD_COLS])
 
 def lcd_write_line(row, text):
     lcd.move_to(0, row)
     lcd.putstr(("{:<" + str(LCD_COLS) + "}").format(text[:LCD_COLS]))
 
-def fmt_trunc(text, width=20):
+def fmt_trunc(text, width=14):
     if len(text) > width:
         return text[:width - 1] + "."
     return text
@@ -342,7 +345,7 @@ def menu_select(title, options):
     n = len(options)
     set_encoder_pos(0)
     last_pos = 0
-    lcd_show(title, "> " + fmt_trunc(options[idx], 18), "", "Turn=Scroll Btn=OK")
+    lcd_show(title[:16], ">" + fmt_trunc(options[idx], 15))
 
     while True:
         pos = get_encoder_pos()
@@ -351,13 +354,11 @@ def menu_select(title, options):
             diff = pos - last_pos
             last_pos = pos
             idx = (idx + diff) % n
-            lcd_write_line(1, "> " + fmt_trunc(options[idx], 18))
-            nxt = (idx + 1) % n
-            lcd_write_line(2, "  " + fmt_trunc(options[nxt], 18))
+            lcd_write_line(1, ">" + fmt_trunc(options[idx], 15))
 
         if was_pressed():
             tick_feedback()
-            lcd_write_line(3, "OK: " + fmt_trunc(options[idx], 15))
+            lcd_write_line(1, "OK:" + fmt_trunc(options[idx], 13))
             time.sleep_ms(300)
             return (idx, options[idx])
         time.sleep_ms(20)
@@ -366,8 +367,7 @@ def menu_adjust_float(title, unit, default, lo, hi, step=0.5):
     val = default
     set_encoder_pos(0)
     last_pos = 0
-    lcd_show(title, "Value: {:.1f} {}".format(val, unit),
-             "Range: {:.1f}-{:.1f}".format(lo, hi), "Turn=Adj  Btn=OK")
+    lcd_show(title[:16], "{:.1f} {}".format(val, unit))
 
     while True:
         pos = get_encoder_pos()
@@ -378,11 +378,11 @@ def menu_adjust_float(title, unit, default, lo, hi, step=0.5):
             val += diff * step
             if val < lo: val = lo
             if val > hi: val = hi
-            lcd_write_line(1, "Value: {:.1f} {}".format(val, unit))
+            lcd_write_line(1, "{:.1f} {}".format(val, unit))
 
         if was_pressed():
             tick_feedback()
-            lcd_write_line(3, "OK: {:.1f} {}".format(val, unit))
+            lcd_write_line(1, "OK:{:.1f} {}".format(val, unit))
             time.sleep_ms(300)
             return val
         time.sleep_ms(20)
@@ -391,8 +391,7 @@ def menu_adjust_int(title, unit, default, lo, hi):
     val = default
     set_encoder_pos(0)
     last_pos = 0
-    lcd_show(title, "Value: {} {}".format(val, unit),
-             "Range: {}-{}".format(lo, hi), "Turn=Adj  Btn=OK")
+    lcd_show(title[:16], "{} {}".format(val, unit))
 
     while True:
         pos = get_encoder_pos()
@@ -403,11 +402,11 @@ def menu_adjust_int(title, unit, default, lo, hi):
             val += diff
             if val < lo: val = lo
             if val > hi: val = hi
-            lcd_write_line(1, "Value: {} {}".format(val, unit))
+            lcd_write_line(1, "{} {}".format(val, unit))
 
         if was_pressed():
             tick_feedback()
-            lcd_write_line(3, "OK: {} {}".format(val, unit))
+            lcd_write_line(1, "OK:{} {}".format(val, unit))
             time.sleep_ms(300)
             return val
         time.sleep_ms(20)
@@ -418,46 +417,55 @@ def menu_adjust_int(title, unit, default, lo, hi):
 # =============================================================================
 
 UTENSIL_CAPACITY_L = {
+    "Aluminium Pot 1L": 1.0,
     "Aluminium Pot 2L": 2.0,
     "Aluminium Pot 3L": 3.0,
     "Aluminium Pot 5L": 5.0,
     "Aluminium Pot 8L": 8.0,
+    "Aluminium Pot 10L": 10.0,
+    "Pressure Cooker 1.5L": 1.5,
     "Pressure Cooker 2L": 2.0,
     "Pressure Cooker 3L": 3.0,
     "Pressure Cooker 5L": 5.0,
     "Pressure Cooker 7.5L": 7.5,
+    "Pressure Cooker 10L": 10.0,
+    "Kadhai / Wok 1.5L": 1.5,
     "Kadhai / Wok 2.5L": 2.5,
+    "Kadhai / Wok 3.5L": 3.5,
     "Kadhai / Wok 4L": 4.0,
     "Kadhai / Wok 6L": 6.0,
     "Stainless Steel Pot 3L": 3.0,
     "Stainless Steel Pot 5L": 5.0,
+    "Stainless Steel Kadhai 2.5L": 2.5,
     "Cast Iron Tawa": 0.5,
     "Cast Iron Frying Pan 26cm": 1.5,
+    "Cast Iron Kadhai 2L": 2.0,
 }
 
 # Per-dish utensil type preference: what utensil category is needed
-# Key: part of dish name, Value: required word in utensil name
 DISH_UTENSIL_PREF = {
-    "Roti":   "Tawa",          # Roti needs a Tawa, not a pot
-    "Sambar": "Pot",           # Sambar needs a Pot, not a Tawa
+    "Roti":   "Tawa",
+    "Sambar": "Pot",
 }
 
 # Dishes that are beverages (should NOT go in pressure cooker)
 BEVERAGE_DISHES = {"Tea (Chai)", "Coffee", "Boiling Milk"}
 
 # Realistic max servings per pot capacity bucket (L)
-# Updated to cover ALL utensil sizes defined in UTENSIL_CAPACITY_L
 CAP_MAX_SERVINGS = {
-    0.5: 1,    # Cast Iron Tawa (dry cooking only, 1 roti)
-    1.5: 2,    # Cast Iron Frying Pan (frying dish for 2 people)
-    2.0: 3,    # Aluminium Pot 2L
-    2.5: 4,    # Kadhai / Wok 2.5L
-    3.0: 5,    # Pressure Cooker 3L, Aluminium Pot 3L
-    4.0: 7,    # Kadhai / Wok 4L
-    5.0: 10,   # Pressure Cooker 5L, Aluminium Pot 5L
-    6.0: 12,   # Kadhai / Wok 6L
-    7.5: 16,   # Pressure Cooker 7.5L
-    8.0: 18,   # Aluminium Pot 8L
+    0.5: 1,    # Cast Iron Tawa
+    1.0: 2,    # Aluminium Pot 1L
+    1.5: 2,    # Kadhai 1.5L / PC 1.5L / Frying Pan
+    2.0: 3,    # Pot 2L / Kadhai 2L / PC 2L
+    2.5: 4,    # Kadhai 2.5L
+    3.0: 5,    # PC 3L / Pot 3L
+    3.5: 6,    # Kadhai 3.5L
+    4.0: 7,    # Kadhai 4L
+    5.0: 10,   # PC 5L / Pot 5L
+    6.0: 12,   # Kadhai 6L
+    7.5: 16,   # PC 7.5L
+    8.0: 18,   # Pot 8L
+    10.0: 20,  # Pot 10L / PC 10L
 }
 
 def validate_inputs(inp):
@@ -543,12 +551,17 @@ def validate_inputs(inp):
     # ── 9. Liquid dish on a Tawa / Frying Pan (HARD) ───────────────────────
     # Tawas and flat pans have no side walls. Any dish with >0.15 kg of
     # water per serving will simply spill off a flat pan.
-    _NEEDS_WALLS = {"Dal Tadka", "Sambar", "Chicken Curry", "Egg Curry",
-                    "Mix Veg Curry", "Chola (Soaked Chickpea)",
-                    "Rajma (Soaked Red Kidney Bean)", "Normal Rice",
-                    "Plain Water Boiling", "Tea (Chai)", "Coffee",
-                    "Boiling Milk", "Kadhai Paneer"}
+    _NEEDS_WALLS = {"Dal Tadka", "Dal Fry", "Sambar", "Chicken Curry",
+                     "Egg Curry", "Fish Curry",
+                     "Mix Veg Curry", "Aloo Gobi", "Aloo Matar",
+                     "Chola (Soaked Chickpea)",
+                     "Rajma (Soaked Red Kidney Bean)", "Normal Rice",
+                     "Khichdi", "Maggi",
+                     "Plain Water Boiling", "Tea (Chai)", "Coffee",
+                     "Boiling Milk", "Kadhai Paneer",
+                     "Paneer Butter Masala"}
     _FLAT_UTENSILS = {"Cast Iron Tawa", "Cast Iron Frying Pan 26cm"}
+    # Note: Cast Iron Kadhai 2L has walls and is NOT flat
     if dish_name in _NEEDS_WALLS and utensil_name in _FLAT_UTENSILS:
         return ("liquid_on_tawa",
                 "Flat pan for wet dish")
@@ -576,18 +589,18 @@ _HARD_ERRORS = {"overflow", "too_many_people", "pc_dry", "milk_overflow",
                 "liquid_on_tawa", "roti_in_pc"}
 
 _FRIENDLY_MSG = {
-    "overflow":          ("Pot is too small!",   "Too much water and",    "food for this pot.",    "Try a bigger pot."),
-    "too_many_people":   ("Too many people!",     "This pot is too small", "for that many folks.",  "Use a bigger pot."),
-    "pc_beverage":       ("Use a normal pot!",    "Tea, coffee & milk",    "don't need a pressure", "cooker. Press OK."),
-    "roti_wrong_utensil":("Wrong pan for Roti!",  "Roti cooks best on",    "a flat Tawa or Pan.",   "Press to continue."),
-    "pc_dry":            ("Not enough water!",    "Pressure cooker needs", "at least 0.2L water.",  "Add more water."),
-    "wind_open":         ("Cover your pot!",      "Strong wind + open pot","wastes a lot of fuel.", "Press to continue."),
-    "pot_heavy":         ("Pot mass too high!",   "Did you set the right", "pot size? Check it.",   "Press to continue."),
-    "pot_light":         ("Pot mass too low!",    "Did you set the right", "pot size? Check it.",   "Press to continue."),
-    "milk_overflow":     ("Too much milk!",        "That much milk won't",  "fit in this pot.",      "Use a bigger pot."),
-    "liquid_on_tawa":    ("Wrong pan!",            "Curries and soups",     "need a deep pot,",      "not a flat tawa."),
-    "roti_in_pc":        ("Roti needs open heat!", "You can't make roti",   "in a sealed pressure",  "cooker. Use Tawa."),
-    "water_in_kadhai":   ("Use a deep pot!",       "Kadhais are shallow.",  "Water evaporates fast.","Try a pot instead."),
+    "overflow":          ("Pot too small!",    "Use bigger pot"),
+    "too_many_people":   ("Too many people!",  "Use bigger pot"),
+    "pc_beverage":       ("Use normal pot!",   "Not for PC"),
+    "roti_wrong_utensil":("Wrong pan!",        "Use Tawa/Pan"),
+    "pc_dry":            ("Not enough H2O!",   "PC needs >0.2L"),
+    "wind_open":         ("Cover your pot!",   "Wind wastes fuel"),
+    "pot_heavy":         ("Mass too high!",    "Check pot size"),
+    "pot_light":         ("Mass too low!",     "Check pot size"),
+    "milk_overflow":     ("Too much milk!",    "Use bigger pot"),
+    "liquid_on_tawa":    ("Wrong pan!",        "Need deep pot"),
+    "roti_in_pc":        ("Not in PC!",        "Use Tawa/Pan"),
+    "water_in_kadhai":   ("Use deep pot!",     "Kadhai shallow"),
 }
 
 
@@ -597,40 +610,45 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("WELCOME", "FDS COOKSTOVE", "    V10 / 1Hz", "Press btn to start")
+    lcd_show("IIT DELHI STOVE", "Press to start")
     boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
     tick_feedback()
 
     dish_names = get_dish_names()
-    _, dish_name = menu_select("SELECT DISH", dish_names)
+    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
     inp["dish_name"] = dish_name
     dish = get_dish(dish_name)
     inp["dish"] = dish
 
     if dish.qty_prompt:
         if dish.qty_is_float:
-            qty = menu_adjust_float( dish.qty_prompt[:14], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
+            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:10], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            qty = float(menu_adjust_int(dish.qty_prompt[:14], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:10], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
         inp["portions"] = qty
     elif dish.variable_water:
-        inp["water_liters"] = menu_adjust_float("WATER VOLUME", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["water_liters"] = menu_adjust_float("2/7 WATER VOL", "L", 5.0, 0.5, 50.0, step=0.5)
         inp["portions"] = 1
     else:
-        inp["portions"] = menu_adjust_int("SERVINGS", "people", 4, 1, 20)
+        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "ppl", 4, 1, 20)
     
     n = inp["portions"]
-    inp["t_ambient_c"] = menu_adjust_float("AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
     
     wind_labels = list(main_logic.WIND_TIERS.keys())
-    _, wind_choice = menu_select("WIND FACTOR", wind_labels)
+    _, wind_choice = menu_select("4/7 WIND", wind_labels)
     inp["wind_label"] = wind_choice
     inp["k_conv_current"] = main_logic.WIND_TIERS[wind_choice]
 
-    utensil_names = get_utensil_names()
-    _, utensil_name = menu_select("UTENSIL", utensil_names)
+    # ── TWO-STEP UTENSIL SELECTION ────────────────────────────────────────
+    # Step 5a: Select vessel TYPE (Kadhai, Pot, Cooker, etc.)
+    cat_names = get_category_names()
+    _, cat_choice = menu_select("5/7 VESSEL TYPE", cat_names)
+    # Step 5b: Select SIZE within that category
+    size_options = get_utensils_in_category(cat_choice)
+    _, utensil_name = menu_select("5/7 SELECT SIZE", size_options)
     utensil = get_utensil(utensil_name)
     inp["utensil_name"] = utensil_name
     inp["utensil"] = utensil
@@ -638,16 +656,16 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
         inp["lid_label"] = "Sealed (PC)"
-        lcd_show("LID STATE", "Pressure Cooker", "Auto-sealed", "lid_factor = 0.0")
+        lcd_show("7/7 LID STATE", "Sealed (PC)")
         time.sleep_ms(1000)
     else:
         lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
-        _, lid_choice = menu_select("LID STATE", lid_options)
+        _, lid_choice = menu_select("7/7 LID STATE", lid_options)
         if "ON" in lid_choice:
             inp["lid_factor"] = main_logic.LID_FACTOR_ON
             inp["lid_label"] = "Lid ON"
@@ -691,7 +709,9 @@ def run_simulation(inp):
     inp.update(geom)
 
     lcd_show("CALCULATING...",
-             )
+             "Finding your cook",
+             "time and pellet load.",
+             "Please wait...")
 
     eta_geom = inp["eta_geom"]
     P_in_kw = (main_logic.FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
@@ -750,8 +770,8 @@ def run_real_timer(t_total_s, t_boil_s):
     boil_ms = int((t_boil_s / t_total_s) * t_total_ms) if t_boil_s and t_total_s > 0 else -1
     _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
 
-    lcd_show("COOKING IN PROGRESS",
-             )
+    lcd_show("COOKING...",
+             "Starting timer")
     time.sleep_ms(500)
 
     last_lcd_s = -1
@@ -781,11 +801,10 @@ def run_real_timer(t_total_s, t_boil_s):
             filled = int(pct / 100.0 * bar_len)
             bar = "#" * filled + "-" * (bar_len - filled)
             if remaining_min >= 1.0:
-                lcd_write_line(1, "{:.0f} min remaining".format(remaining_min))
+                lcd_write_line(0, "{:.0f}min left {}%".format(remaining_min, pct))
             else:
-                lcd_write_line(1, "Almost ready!       ")
-            lcd_write_line(2, "[{}]".format(bar))
-            lcd_write_line(3, "{}% done".format(pct))
+                lcd_write_line(0, "Almost ready!")
+            lcd_write_line(1, "[{}]".format(bar[:14]))
 
         # ── Timer complete ─────────────────────────────────────────────────────
         if elapsed_ms >= t_total_ms:
@@ -799,14 +818,13 @@ def display_results(inp):
     t_min_suggested = int(inp["t_total_s"] / 60.0)
     
     # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
-    lcd_show(
-             "Time   : ~{} min".format(t_min_suggested),
-             "Pellets: ~{:.0f} g".format(inp["pellets_required_g"]),
-             )
+    lcd_show("~{}min ~{}g".format(t_min_suggested, int(inp["pellets_required_g"])),
+             "Press to adjust")
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
     user_min = menu_adjust_int("SET COOK TIME", "min", t_min_suggested, 1, 240)
+
     user_total_s = user_min * 60.0
 
     # ── Step 3: Recalculate Pellets for User's Time ──────────────────────────
@@ -818,10 +836,8 @@ def display_results(inp):
         pellets_g = 1300
 
     # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
-    lcd_show(
-             "Time   : {:.0f} min".format(user_min),
-             "Pellets: {:.0f} g".format(pellets_g),
-             )
+    lcd_show("{:.0f}min {:.0f}g".format(user_min, pellets_g),
+             "Press to START")
 
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
@@ -831,17 +847,13 @@ def display_results(inp):
     run_real_timer(user_total_s, t_boil_s)
 
     # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
-    lcd_show(
-             "Your food is done.",
-             "Turn off the stove."
-             )
+    lcd_show("FOOD IS READY!",
+             "Press to confirm")
     timer_alarm()
 
     # ── Step 7: Summary screen ───────────────────────────────────────────────
-    lcd_show(
-             "Cook time: {:.0f} min".format(user_min),
-             "Pellets used: {:.0f}g".format(pellets_g),
-             )
+    lcd_show("{:.0f}min {:.0f}g done".format(user_min, pellets_g),
+             "Press to restart")
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
@@ -865,8 +877,8 @@ def main():
             err = validate_inputs(inp)
             if err:
                 err_key, detail = err
-                msg = _FRIENDLY_MSG.get(err_key, ("Invalid setup!", detail, "Please try again.", "Press to go back."))
-                lcd_show(msg[0], msg[1], msg[2], msg[3])
+                msg = _FRIENDLY_MSG.get(err_key, ("Invalid setup!", "Try again"))
+                lcd_show(msg[0], msg[1])
                 if err_key in _HARD_ERRORS:
                     invalid_combo_alarm()  # 3 rapid beeps — must fix before continuing
                     continue               # restart wizard
@@ -878,9 +890,8 @@ def main():
             display_results(inp)
 
         except Exception as e:
-            lcd_show("Something went wrong",
-                     "Please restart"
-                     )
+            lcd_show("ERROR!",
+                     "Press to restart")
             while not was_pressed(): time.sleep_ms(50)
             tick_feedback()
 
