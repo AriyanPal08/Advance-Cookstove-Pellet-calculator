@@ -7,13 +7,12 @@
 #   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
 #   LED:           Pin 26
 #   Buzzer:        Pin 27 (PWM)
-#
+
 # ALARM BEHAVIORS:
 #   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
 #   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
 #   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
 #   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
-# =============================================================================
 
 import machine
 import time
@@ -25,7 +24,7 @@ from utensil_db import (UTENSIL_DB, get_utensil_names, get_utensil,
                         get_category_names, get_utensils_in_category)
 import main_logic
 
-# =============================================================================
+
 # HARDWARE PIN SETUP — WITH ERROR HANDLING
 # =============================================================================
 
