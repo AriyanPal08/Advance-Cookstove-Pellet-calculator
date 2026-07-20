@@ -291,6 +291,8 @@ def zero_state(inp):
     inp["t_elapsed_s"]      = 0.0
     inp["T_pot_c"]          = inp["t_ambient_c"]
     inp["m_water_current"]  = inp["m_water_initial"]
+    inp["flag_dry_boil"]    = False
+    inp["flag_overheat"]    = False
     inp["t_boil_reached_s"] = None
     inp["tick_log"]         = []
     return inp
@@ -325,6 +327,8 @@ def run_1hz_loop(inp):
     T_pot            = inp["T_pot_c"]
     m_water          = inp["m_water_current"]
     t_elapsed        = inp["t_elapsed_s"]
+    flag_dry         = False
+    flag_over        = False
     t_boil_reached   = None
 
     Q_in_kj = 0.0
@@ -409,6 +413,12 @@ def run_1hz_loop(inp):
         if t_elapsed > MAX_SIMULATION_TIME:
             break
 
+        # Safety flags
+        if m_water <= M_WATER_DRY and not flag_dry:
+            flag_dry = True
+        if T_pot > T_OVERHEAT_C and not flag_over:
+            flag_over = True
+
         # Sparse telemetry log
         tick += 1
         if tick % log_interval == 0 or t_elapsed >= t_total_s:
@@ -420,6 +430,8 @@ def run_1hz_loop(inp):
     inp["t_elapsed_s"]      = t_elapsed
     inp["T_pot_c"]          = T_pot
     inp["m_water_current"]  = m_water
+    inp["flag_dry_boil"]    = flag_dry
+    inp["flag_overheat"]    = flag_over
     inp["t_boil_reached_s"] = t_boil_reached
     inp["tick_log"]         = tick_log
     inp["P_in_kw"]          = P_in_kw
