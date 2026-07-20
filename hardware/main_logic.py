@@ -1,22 +1,28 @@
-
+# =============================================================================
 # hardware/main_logic.py — MicroPython Port (ESP32)
 # 1Hz Discrete Transient Biomass Cookstove Simulator
 # IIT Delhi - Department of Energy Studies
+#
 # ALL PHYSICS FUNCTIONS AND CONSTANTS PRESERVED BYTE-FOR-BYTE.
 # Terminal UI (ANSI codes, prompts, menus, print_receipt) REMOVED.
 # Only pure computation functions remain for hardware/main.py to call.
+#
 # SOURCES:
 # [1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
 # [2] NIST WebBook — Aluminium thermophysical properties.
 # [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7e.
 # [4] WBT v4.2.3 (2017). Clean Cooking Alliance.
 # [5] Choi & Okos (1986); ICMR-NIN (2017).
-# MODEL SCOPE
+# =============================================================================
+#
+# ── MODEL SCOPE ──────────────────────────────────────────────────────────────
 # This model is designed for constant-feed, forced-draft pellet stoves
 # operating at a fixed HIGH fan setting. There is no closed-loop pellet
 # control: the feed rate is mechanically fixed. The model serves as a
 # decision-support tool for hopper loading — it tells the user how many
 # grams of pellets to load before cooking, not during.
+# ─────────────────────────────────────────────────────────────────────────────
+
 import math
 
 from food_db    import FOOD_DB, DishProfile, get_dish_names
@@ -285,8 +291,6 @@ def zero_state(inp):
     inp["t_elapsed_s"]      = 0.0
     inp["T_pot_c"]          = inp["t_ambient_c"]
     inp["m_water_current"]  = inp["m_water_initial"]
-    inp["flag_dry_boil"]    = False
-    inp["flag_overheat"]    = False
     inp["t_boil_reached_s"] = None
     inp["tick_log"]         = []
     return inp
@@ -321,8 +325,6 @@ def run_1hz_loop(inp):
     T_pot            = inp["T_pot_c"]
     m_water          = inp["m_water_current"]
     t_elapsed        = inp["t_elapsed_s"]
-    flag_dry         = False
-    flag_over        = False
     t_boil_reached   = None
 
     Q_in_kj = 0.0
@@ -407,12 +409,6 @@ def run_1hz_loop(inp):
         if t_elapsed > MAX_SIMULATION_TIME:
             break
 
-        # Safety flags
-        if m_water <= M_WATER_DRY and not flag_dry:
-            flag_dry = True
-        if T_pot > T_OVERHEAT_C and not flag_over:
-            flag_over = True
-
         # Sparse telemetry log
         tick += 1
         if tick % log_interval == 0 or t_elapsed >= t_total_s:
@@ -424,8 +420,6 @@ def run_1hz_loop(inp):
     inp["t_elapsed_s"]      = t_elapsed
     inp["T_pot_c"]          = T_pot
     inp["m_water_current"]  = m_water
-    inp["flag_dry_boil"]    = flag_dry
-    inp["flag_overheat"]    = flag_over
     inp["t_boil_reached_s"] = t_boil_reached
     inp["tick_log"]         = tick_log
     inp["P_in_kw"]          = P_in_kw
