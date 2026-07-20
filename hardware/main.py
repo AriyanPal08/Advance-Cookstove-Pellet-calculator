@@ -1,18 +1,17 @@
 # =============================================================================
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
-#
 # HARDWARE WIRING:
 #   I2C LCD 16x2:  SDA=21, SCL=22
 #   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
 #   LED:           Pin 26
 #   Buzzer:        Pin 27 (PWM)
-
 # ALARM BEHAVIORS:
 #   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
 #   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
 #   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
 #   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
+# =============================================================================
 
 import machine
 import time
@@ -24,7 +23,7 @@ from utensil_db import (UTENSIL_DB, get_utensil_names, get_utensil,
                         get_category_names, get_utensils_in_category)
 import main_logic
 
-
+# =============================================================================
 # HARDWARE PIN SETUP — WITH ERROR HANDLING
 # =============================================================================
 
@@ -609,32 +608,32 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("FDS STOVE", "Press to start")
+    lcd_show("IIT DELHI STOVE", "Press to start")
     boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
     tick_feedback()
 
     dish_names = get_dish_names()
-    _, dish_name = menu_select("SELECT DISH", dish_names)
+    _, dish_name = menu_select("1/7 SELECT DISH", dish_names)
     inp["dish_name"] = dish_name
     dish = get_dish(dish_name)
     inp["dish"] = dish
 
     if dish.qty_prompt:
         if dish.qty_is_float:
-            qty = menu_adjust_float(dish.qty_prompt[:10], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
+            qty = menu_adjust_float("2/7 " + dish.qty_prompt[:10], dish.qty_unit, dish.qty_default, dish.qty_min, dish.qty_max, step=0.5)
         else:
-            qty = float(menu_adjust_int(dish.qty_prompt[:10], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
+            qty = float(menu_adjust_int("2/7 " + dish.qty_prompt[:10], dish.qty_unit, int(dish.qty_default), int(dish.qty_min), int(dish.qty_max)))
         inp["portions"] = qty
     elif dish.variable_water:
-        inp["water_liters"] = menu_adjust_float("WATER VOL", "L", 5.0, 0.5, 50.0, step=0.5)
+        inp["water_liters"] = menu_adjust_float("2/7 WATER VOL", "L", 5.0, 0.5, 50.0, step=0.5)
         inp["portions"] = 1
     else:
-        inp["portions"] = menu_adjust_int("SERVINGS", "ppl", 4, 1, 20)
+        inp["portions"] = menu_adjust_int("2/7 SERVINGS", "ppl", 4, 1, 20)
     
     n = inp["portions"]
-    inp["t_ambient_c"] = menu_adjust_float("AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
+    inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
     
     wind_labels = list(main_logic.WIND_TIERS.keys())
     _, wind_choice = menu_select("4/7 WIND", wind_labels)
@@ -644,10 +643,10 @@ def collect_inputs():
     # ── TWO-STEP UTENSIL SELECTION ────────────────────────────────────────
     # Step 5a: Select vessel TYPE (Kadhai, Pot, Cooker, etc.)
     cat_names = get_category_names()
-    _, cat_choice = menu_select("VESSEL TYPE", cat_names)
+    _, cat_choice = menu_select("5/7 VESSEL TYPE", cat_names)
     # Step 5b: Select SIZE within that category
     size_options = get_utensils_in_category(cat_choice)
-    _, utensil_name = menu_select("SELECT SIZE", size_options)
+    _, utensil_name = menu_select("5/7 SELECT SIZE", size_options)
     utensil = get_utensil(utensil_name)
     inp["utensil_name"] = utensil_name
     inp["utensil"] = utensil
@@ -655,16 +654,16 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
         inp["lid_label"] = "Sealed (PC)"
-        lcd_show("LID STATE", "Sealed (PC)")
+        lcd_show("7/7 LID STATE", "Sealed (PC)")
         time.sleep_ms(1000)
     else:
         lid_options = ["Lid ON (Covered)", "Lid OFF (Open)"]
-        _, lid_choice = menu_select("LID STATE", lid_options)
+        _, lid_choice = menu_select("7/7 LID STATE", lid_options)
         if "ON" in lid_choice:
             inp["lid_factor"] = main_logic.LID_FACTOR_ON
             inp["lid_label"] = "Lid ON"
@@ -707,8 +706,10 @@ def run_simulation(inp):
     )
     inp.update(geom)
 
-    lcd_show("CALCULATING..."
-             )
+    lcd_show("CALCULATING...",
+             "Finding your cook",
+             "time and pellet load.",
+             "Please wait...")
 
     eta_geom = inp["eta_geom"]
     P_in_kw = (main_logic.FAN_HIGH / 3600.0) * inp["gcv_kj_kg"] * eta_geom
@@ -738,7 +739,7 @@ def run_simulation(inp):
     inp["t_preview_s"]       = preview["t_preview_s"]
     inp["t_total_s"]         = t_total_s
 
-    # ── 1Hz PHYSICS LOOP (Actual Simulation) ─────────────────────────────────
+    # 1Hz PHYSICS LOOP (Actual Simulation) 
     # We use the full loop on the ESP32. It takes ~5s to run but guarantees
     # exactly the same results as the software version by correctly tracking
     # evaporation and energy over time.
