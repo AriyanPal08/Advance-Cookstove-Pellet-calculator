@@ -707,8 +707,6 @@ def run_simulation(inp):
     inp.update(geom)
 
     lcd_show("CALCULATING...",
-             "Finding your cook",
-             "time and pellet load.",
              "Please wait...")
 
     eta_geom = inp["eta_geom"]
@@ -894,4 +892,3 @@ def main():
             tick_feedback()
 
 main()
-
