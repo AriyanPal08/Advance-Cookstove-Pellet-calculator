@@ -1,11 +1,13 @@
 # =============================================================================
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
+#
 # HARDWARE WIRING:
 #   I2C LCD 16x2:  SDA=21, SCL=22
 #   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
 #   LED:           Pin 26
 #   Buzzer:        Pin 27 (PWM)
+#
 # ALARM BEHAVIORS:
 #   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
 #   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
@@ -886,8 +888,13 @@ def main():
             display_results(inp)
 
         except Exception as e:
-            lcd_show("ERROR!",
-                     "Press to restart")
+            # Keep the original restart behavior, but expose the actual cause
+            # on the serial console and LCD instead of hiding it completely.
+            print("ERROR:", repr(e))
+            detail = str(e)
+            if not detail:
+                detail = "Unknown error"
+            lcd_show("ERROR!", detail[:LCD_COLS])
             while not was_pressed(): time.sleep_ms(50)
             tick_feedback()
 
