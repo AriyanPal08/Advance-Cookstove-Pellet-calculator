@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookstove Pellet Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="site-header">
+            <p class="eyebrow">Cookstove planning tool</p>
+            <h1>Pellet Calculator</h1>
+            <p>Estimate cooking time and hopper load using the current 1 Hz simulation engine.</p>
+        </header>
+
+        <main id="app">
+            <!-- Loading State -->
+            <div id="loading" class="panel text-center">
+                <p>Loading calculator data…</p>
+            </div>
+
+            <!-- Configuration Form -->
+            <form id="config-form" class="panel hidden">
+                <div class="panel-heading"><div><p class="eyebrow">Step 1 of 3</p><h2>Cooking setup</h2></div><p class="panel-help">Use the vessel’s actual mass when known.</p></div>
+                <div id="form-message" class="message hidden" role="alert" aria-live="assertive"></div>
+                
+                <div class="form-group">
+                    <label for="dish_name">Dish Selection</label>
+                    <select id="dish_name" name="dish_name" required></select>
+                </div>
+
+                <div class="form-group">
+                    <label id="qty_label" for="qty">Quantity</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="qty" name="qty" step="any" required>
+                        <span id="qty_unit" class="unit"></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="t_ambient_c">Ambient Temperature</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="t_ambient_c" name="t_ambient_c" value="25" step="0.1" required>
+                        <span class="unit">°C</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="wind_label">Wind Factor / Environment</label>
+                    <select id="wind_label" name="wind_label" required></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="pellet_name">Pellet Type</label>
+                    <select id="pellet_name" name="pellet_name" required></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="utensil_name">Utensil</label>
+                    <select id="utensil_name" name="utensil_name" required></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="m_pot">Vessel Mass (Override)</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="m_pot" name="m_pot" step="0.001" required>
+                        <span class="unit">kg</span>
+                    </div>
+                </div>
+
+                <div class="form-group" id="lid_group">
+                    <label for="lid_state">Lid State</label>
+                    <select id="lid_state" name="lid_state">
+                        <option value="ON">Lid ON (covered)</option>
+                        <option value="OFF">Lid OFF (open)</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn">Review estimate <span aria-hidden="true">→</span></button>
+            </form>
+
+            <!-- Preview & Confirm -->
+            <div id="preview-panel" class="panel hidden">
+                <div class="panel-heading"><div><p class="eyebrow">Step 2 of 3</p><h2>Review cooking time</h2></div><p class="panel-help">The suggested time includes a safety buffer. You can adjust it.</p></div>
+                <div class="stats-grid">
+                    <div class="stat">
+                        <span class="label">Heat-up time</span>
+                        <span class="value" id="preview_heat"></span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Boil time</span>
+                        <span class="value" id="preview_boil"></span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Kinetic time</span>
+                        <span class="value" id="preview_kinetic"></span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Safety buffer</span>
+                        <span class="value" id="preview_buffer"></span>
+                    </div>
+                </div>
+
+                <div class="total-time-confirm">
+                    <label for="t_total_min">Total cooking time (minutes)</label>
+                    <input type="number" id="t_total_min" name="t_total_min" step="0.1" required>
+                </div>
+
+                <div class="actions">
+                    <button id="btn-back" type="button" class="btn btn-outline">Back</button>
+                    <button id="btn-simulate" type="button" class="btn">Run calculation <span aria-hidden="true">→</span></button>
+                </div>
+            </div>
+
+            <!-- Simulation Running -->
+            <div id="simulating" class="panel text-center hidden">
+                <p class="eyebrow">Step 3 of 3</p><p>Running the 1 Hz transient calculation…</p>
+                <div class="loader"></div>
+            </div>
+
+            <!-- Receipt -->
+            <div id="receipt-panel" class="panel receipt hidden">
+                <div class="receipt-header">
+                    <p class="eyebrow">Calculation complete</p>
+                    <h2>Pellet load recommendation</h2>
+                </div>
+                
+                <div class="receipt-section">
+                    <h3>Cooking setup</h3>
+                    <table class="receipt-table" id="receipt-inputs"></table>
+                </div>
+
+                <div class="receipt-section">
+                    <h3>Time estimate</h3>
+                    <table class="receipt-table" id="receipt-times"></table>
+                </div>
+
+                <div class="receipt-section">
+                    <h3>Energy summary</h3>
+                    <table class="receipt-table" id="receipt-energy"></table>
+                </div>
+
+                <div class="receipt-section">
+                    <h3>Safety checks</h3>
+                    <div id="receipt-safety"></div>
+                </div>
+
+                <div class="receipt-section final-recommendation">
+                    <h3>Recommended hopper load</h3>
+                    <div class="pellet-highlight" id="receipt-pellets"></div>
+                    <p class="footnote">Formula: (t_elapsed / 3600) × FAN_HIGH × 1000</p>
+                    <p class="footnote" id="receipt-pellets-details"></p>
+                </div>
+
+                <button id="btn-restart" type="button" class="btn btn-full">Start another calculation</button>
+            </div>
+        </main>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
