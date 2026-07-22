@@ -1,30 +1,11 @@
-import sys
-from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
-# Add parent directory to sys.path so we can import the original modules
-parent_dir = str(Path(__file__).resolve().parent.parent)
-sys.path.insert(0, parent_dir)
-
-from food_db import FOOD_DB, get_dish_names
-from pellet_db import PELLET_DB, get_pellet_names
-from utensil_db import UTENSIL_DB, get_utensil_names, get_utensil
-from main_logic import (
-    WIND_TIERS,
-    LID_FACTOR_ON,
-    LID_FACTOR_OFF,
-    FAN_HIGH,
-    CP_WATER,
-    PRESSURE_POST_BOIL_FACTOR,
-    compute_vessel_geometry,
-    _emissivity_for_utensil,
-    estimate_cook_time,
-    compute_safety_buffer_s,
-    zero_state,
-    run_1hz_loop,
-    post_process,
-    MAX_EFFICIENCY,
-    EMISSIVITY_DEFAULT
+from hardware_adapter import (
+    FOOD_DB, get_dish_names, PELLET_DB, get_pellet_names,
+    get_utensil_names, get_utensil, WIND_TIERS, LID_FACTOR_ON,
+    LID_FACTOR_OFF, FAN_HIGH, CP_WATER, PRESSURE_POST_BOIL_FACTOR,
+    compute_vessel_geometry, _emissivity_for_utensil, estimate_cook_time,
+    compute_safety_buffer_s, zero_state, run_1hz_loop, post_process,
 )
 
 app = Flask(__name__)
@@ -72,6 +53,9 @@ def init_data():
 def _build_inputs(data):
     """Replicate the first part of collect_inputs logic from main_logic.py."""
     inp = {}
+    # The utensil is selected later in the web form. Start as an open vessel,
+    # then recompute the kinetic duration once its real type is known.
+    inp["is_pc"] = False
     
     # 1. Dish
     inp["dish_name"] = data["dish_name"]
@@ -96,7 +80,10 @@ def _build_inputs(data):
         kinetic_time_s = 0.0
         for stage in dish.stages:
             if stage.stage_type == "kinetic":
-                kinetic_time_s += stage.duration_s * PRESSURE_POST_BOIL_FACTOR
+                # This reduction is a pressure-cooker-only hardware rule.
+                kinetic_time_s += stage.duration_s * (
+                    PRESSURE_POST_BOIL_FACTOR if inp["is_pc"] else 1.0
+                )
             elif stage.stage_type == "frying":
                 kinetic_time_s += stage.duration_s
         inp["t_kinetic_base_s"] = kinetic_time_s
@@ -118,6 +105,17 @@ def _build_inputs(data):
     inp["is_pc"] = utensil.is_pressure
     inp["utensil"] = utensil # Important for post_process to read utensil.is_pressure
 
+    if not dish.variable_water:
+        kinetic_time_s = 0.0
+        for stage in dish.stages:
+            if stage.stage_type == "kinetic":
+                kinetic_time_s += stage.duration_s * (
+                    PRESSURE_POST_BOIL_FACTOR if inp["is_pc"] else 1.0
+                )
+            elif stage.stage_type == "frying":
+                kinetic_time_s += stage.duration_s
+        inp["t_kinetic_base_s"] = kinetic_time_s
+
     inp["m_pot"] = float(data.get("m_pot", utensil.mass_kg))
 
     # Lid
@@ -135,11 +133,8 @@ def _build_inputs(data):
     # Geometry
     m_w = inp["m_water_initial"]
     inp["emissivity"] = _emissivity_for_utensil(utensil)
-    # Keep the web interface in step with the current calculator engine.
-    # Food mass is part of the engine's geometry correction for liquid-light loads.
-    geom = compute_vessel_geometry(
-        m_w, inp["utensil_name"], inp["lid_factor"], inp["m_food"]
-    )
+    # Match hardware/main.py run_simulation() exactly.
+    geom = compute_vessel_geometry(m_w, inp["utensil_name"], inp["lid_factor"])
     inp.update(geom)
 
     # Preview logic
@@ -211,10 +206,9 @@ def simulate():
     try:
         inp = _build_inputs(data)
         
-        # User defined total time
-        t_total_min = float(data.get("t_total_min", inp["t_suggested_total_min"]))
-        if t_total_min <= 0:
-            raise ValueError("Total cooking time must be greater than zero.")
+        # Hardware uses the calculated duration (heat-up + kinetic + safety
+        # buffer) rather than a user override. Keep the web result identical.
+        t_total_min = inp["t_suggested_total_min"]
         inp["t_total_s"] = t_total_min * 60.0
         inp["t_total_min_user"] = t_total_min
 

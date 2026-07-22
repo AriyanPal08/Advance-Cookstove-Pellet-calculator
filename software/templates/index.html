@@ -106,8 +106,9 @@
                 </div>
 
                 <div class="total-time-confirm">
-                    <label for="t_total_min">Total cooking time (minutes)</label>
-                    <input type="number" id="t_total_min" name="t_total_min" step="0.1" required>
+                    <label for="t_total_min">Hardware-calculated cooking time (minutes)</label>
+                    <input type="number" id="t_total_min" name="t_total_min" step="0.1" readonly aria-describedby="time-help">
+                    <p id="time-help" class="panel-help">This is calculated from the hardware model’s heat-up, cooking, and safety-buffer rules.</p>
                 </div>
 
                 <div class="actions">
