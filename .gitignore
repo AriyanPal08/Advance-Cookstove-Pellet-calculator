@@ -42,7 +42,20 @@ wheels/
 
 # Logs
 stove_calculations_log.csv
+*.log
+
+# Sensitive
+.env
+.env.*
+secrets.json
+credentials.json
 
 # IDE
 .vscode/
 .idea/
+
+# Node
+node_modules/
+package-lock.json
+**/node_modules/
+**/package-lock.json
