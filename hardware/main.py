@@ -1,4 +1,4 @@
-# =============================================================================
+\# =============================================================================
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
 #
