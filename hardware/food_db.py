@@ -1,4 +1,4 @@
-
+# =============================================================================
 # hardware/food_db.py — MicroPython Port (ESP32)
 # Biomass Cookstove Food & Dish Database — v10
 # Converted from @dataclass(frozen=True) to plain __init__ classes.
@@ -12,6 +12,8 @@
 # [5] Singh (2007). Hydration kinetics of chickpea and blackgram.
 # [6] McGee, H. (2004). On Food and Cooking, 2nd ed. Scribner.
 # [7] Ofstad et al. (1996). Myosin denaturation in fish muscle.
+# =============================================================================
+
 # Cp of water at T=60 C midpoint [Choi & Okos 1986]
 CP_WATER_KJ_KGK = 4.171
 DELTA_T_K = 75.0   # 100 C - 25 C ambient
@@ -83,6 +85,8 @@ class DishProfile:
             simmering_s=0,
         )
 
+
+# ===========================================================================
 # MASTER FOOD DATABASE — 23 dishes
 # All Cp values: Choi & Okos (1986) at T=60 C, ICMR-NIN IFCT 2017.
 # Component Cp at 60 C: Water=4.1707, Protein=2.0807, Fat=2.0726,
@@ -91,7 +95,7 @@ class DishProfile:
 
 FOOD_DB = {
 
-    #  MILLED RICE
+    # ── MILLED RICE ──────────────────────────────────────────────────────────
     # Cp = 2.04 kJ/kg-K  (Xw=0.137, Xp=0.075, Xf=0.005, Xc=0.774, Xa=0.006)
     "Normal Rice": DishProfile(
         name="Normal Rice",
@@ -106,7 +110,7 @@ FOOD_DB = {
         category="Staple Grain",
     ),
 
-    # DAL TADKA 
+    # ── DAL TADKA ────────────────────────────────────────────────────────────
     # Cp = 1.95 kJ/kg-K  (Xw=0.104, Xp=0.240, Xf=0.013, Xc=0.567, Xa=0.035)
     "Dal Tadka": DishProfile(
         name="Dal Tadka",
@@ -123,7 +127,7 @@ FOOD_DB = {
         category="Lentil Dish",
     ),
 
-    # CHICKEN CURRY 
+    # ── CHICKEN CURRY ────────────────────────────────────────────────────────
     # Cp = 3.74 kJ/kg-K  (mass-weighted: 120g chicken + 60g onion + 40g tomato)
     "Chicken Curry": DishProfile(
         name="Chicken Curry",
@@ -140,7 +144,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    #  ROTI
+    # ── ROTI (per single roti — v10 Smart Units) ────────────────────────────
     # Cp = 2.66 kJ/kg-K  (dough: (90/126)*2.05 + (36/126)*4.171)
     "Roti": DishProfile(
         name="Roti",
@@ -159,7 +163,7 @@ FOOD_DB = {
         qty_default=4.0,
     ),
 
-    # TEA (CHAI) 
+    # ── TEA (CHAI) ───────────────────────────────────────────────────────────
     # Cp = 2.86 kJ/kg-K  (solids proxy: Xp~0.05, Xf~0.06, Xc~0.87, Xa~0.02)
     "Tea (Chai)": DishProfile(
         name="Tea (Chai)",
@@ -190,7 +194,7 @@ FOOD_DB = {
         category="Lentil-Vegetable Stew",
     ),
 
-    # COFFEE
+    # ── COFFEE ───────────────────────────────────────────────────────────────
     # Cp = 1.70 kJ/kg-K  (proxy: Xc~0.80, Xp~0.12, Xf~0.02, Xa~0.06)
     "Coffee": DishProfile(
         name="Coffee",
@@ -204,7 +208,7 @@ FOOD_DB = {
         category="Beverage",
     ),
 
-    # MIX VEG CURRY
+    # ── MIX VEG CURRY ────────────────────────────────────────────────────────
     # Cp = 3.76 kJ/kg-K  (composite: potato, carrot, beans, peas)
     "Mix Veg Curry": DishProfile(
         name="Mix Veg Curry",
@@ -220,7 +224,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    # EGG CURRY
+    # ── EGG CURRY ────────────────────────────────────────────────────────────
     # Cp = 3.67 kJ/kg-K  (composite: (110/150)*3.60 + (40/150)*3.85)
     "Egg Curry": DishProfile(
         name="Egg Curry",
@@ -236,7 +240,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    # PLAIN WATER BOILING (variable_water=True)
+    # ── PLAIN WATER BOILING (variable_water=True) ────────────────────────────
     # Cp = 4.171 kJ/kg-K  (trace solids approximated as water)
     "Plain Water Boiling": DishProfile(
         name="Plain Water Boiling",
@@ -250,7 +254,7 @@ FOOD_DB = {
         variable_water=True,
     ),
 
-    # CHOLA (SOAKED CHICKPEA)
+    # ── CHOLA(SOAKED) ────────────────────────────────────.──────────
     # Cp = 3.10 kJ/kg-K  (Xw=0.68, Xp=0.12, Xc=0.20) [Choi-Okos; Singh 2007]
     "Chola (Soaked Chickpea)": DishProfile(
         name="Chola (Soaked Chickpea)",
@@ -265,7 +269,7 @@ FOOD_DB = {
         category="Legume (Soaked)",
     ),
 
-    # RAJMA (SOAKED RED KIDNEY BEAN)
+    # ── RAJMA(SOAKED)───────────────────────────────────────
     # Cp = 3.10 kJ/kg-K  (Xw~0.68, Xp~0.12, Xc~0.20) [Singh 2007]
     "Rajma (Soaked Red Kidney Bean)": DishProfile(
         name="Rajma (Soaked Red Kidney Bean)",
@@ -280,7 +284,7 @@ FOOD_DB = {
         category="Legume (Soaked)",
     ),
 
-    #  KADHAI PANEER 
+    # ── KADHAI PANEER ────────────────────────────────────────────────────────
     # Cp = 3.25 kJ/kg-K  (composite: 50% paneer + 50% gravy)
     "Kadhai Paneer": DishProfile(
         name="Kadhai Paneer",
@@ -295,7 +299,7 @@ FOOD_DB = {
         category="Paneer Curry",
     ),
 
-    # ALOO GOBI (Potato-Cauliflower Curry) 
+    # ── ALOO GOBI─────────────────────────────────
     # Cp = 3.664 kJ/kg-K  (60:40 potato:cauliflower composite)
     # Potato (IFCT 2017): Xw=0.74, Xp=0.02, Xf=0.001, Xc=0.22, Xa=0.01
     # Cauliflower (IFCT 2017): Xw=0.91, Xp=0.025, Xf=0.003, Xc=0.05, Xa=0.008
@@ -314,7 +318,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    # ALOO MATAR (Potato-Peas Curry) 
+    # ── ALOO MATAR ───────────────────────────────────────
     # Cp = 3.485 kJ/kg-K  (50:50 potato:peas composite)
     # Potato+Peas (IFCT 2017): Xw=0.73, Xp=0.07, Xf=0.004, Xc=0.18, Xa=0.01
     # Stages: Potato 8-15 min, Peas 3-5 min → weighted ~10 min [6]
@@ -332,7 +336,7 @@ FOOD_DB = {
         category="Vegetable Curry",
     ),
 
-    #  DAL FRY (Masoor/Moong Dal)
+    # ── DAL FRY (Masoor/Moong Dal) ───────────────────────────────────────────
     # Cp = 1.956 kJ/kg-K  (IFCT 2017: Xw=0.10, Xp=0.25, Xf=0.008, Xc=0.59, Xa=0.03)
     # Split lentils soften faster than whole toor dal [8]
     "Dal Fry": DishProfile(
@@ -349,7 +353,7 @@ FOOD_DB = {
         category="Lentil Dish",
     ),
 
-    # FISH CURRY 
+    # ── FISH CURRY ───────────────────────────────────────────────────────────
     # Cp = 3.655 kJ/kg-K  (Rohu fish + onion-tomato gravy composite)
     # Rohu (IFCT 2017): Xw=0.76, Xp=0.17, Xf=0.02, Xc=0.01, Xa=0.013
     # Fish myosin denatures at 39-50 C (Ofstad et al., 1996) [7]
@@ -368,7 +372,7 @@ FOOD_DB = {
         category="Non-Veg Curry",
     ),
 
-    # PANEER BUTTER MASALA
+    # ──PANEER BTR MSL─────────────────────────────────────────────────
     # Cp = 3.133 kJ/kg-K  (Paneer + tomato-cream gravy composite)
     # Paneer (IFCT 2017): Xw=0.53, Xp=0.18, Xf=0.22, Xc=0.03, Xa=0.02
     # Same cooking pattern as Kadhai Paneer [6]
@@ -385,7 +389,7 @@ FOOD_DB = {
         category="Paneer Curry",
     ),
 
-    # KHICHDI (Rice + Moong Dal)
+    # ── KHICHDI ───────────────────────────────────────────
     # Cp = 1.937 kJ/kg-K  (60:40 rice:moong composite, IFCT 2017)
     # Same grain-in-water pattern as Normal Rice [8]
     "Khichdi": DishProfile(
@@ -401,7 +405,7 @@ FOOD_DB = {
         category="Staple Grain",
     ),
 
-    # POHA (Flattened Rice) 
+    # ── POHA ────────────────────────────────────────────────
     # Cp = 1.932 kJ/kg-K  (IFCT 2017: Xw=0.12, Xp=0.065, Xf=0.013, Xc=0.77, Xa=0.015)
     # Pre-flattened, already partially gelatinized during manufacturing [8]
     "Poha": DishProfile(
@@ -417,7 +421,7 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # UPMA (Semolina)
+    # ── UPMA (Semolina) ──────────────────────────────────────────────────────
     # Cp = 1.927 kJ/kg-K  (IFCT 2017: Xw=0.11, Xp=0.10, Xf=0.005, Xc=0.74, Xa=0.01)
     # Fine semolina gelatinizes rapidly once water is added [8]
     "Upma": DishProfile(
@@ -433,7 +437,7 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # MAGGI / INSTANT NOODLES
+    # ── MAGGI / INSTANT NOODLES ──────────────────────────────────────────────
     # Cp = 1.890 kJ/kg-K  (wheat noodle proxy, IFCT 2017: Xw=0.10, Xp=0.095, Xf=0.015, Xc=0.76, Xa=0.02)
     # Pre-fried noodles rehydrate rapidly — 2 min post-boil (manufacturer spec)
     "Maggi": DishProfile(
@@ -448,11 +452,10 @@ FOOD_DB = {
         category="Snack / Breakfast",
     ),
 
-    # BOILING MILK (v10 dry-solids model)
+    # ── BOILING MILK (v10 dry-solids model) ──────────────────────────────────
     # Cp = 1.50 kJ/kg-K (solids-only: Xp=0.246, Xf=0.285, Xc=0.377, Xa=0.077)
     # food_mass = 0.130 kg dry solids per litre
     # added_water = 0.870 kg inherent water per litre
-    #
     # Kinetic Stage Source (Dairy Physical Chemistry):
     # Unlike water, boiling milk forms a surface pellicle (skin) due to the
     # denaturation of whey proteins (β-lactoglobulin). Steam bubbles get trapped
