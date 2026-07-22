@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@theme {
+  --font-space: "Space Grotesk", sans-serif;
+  --color-background: #FAF9F6;
+  --color-foreground: #1A1A1A;
+  --color-accent: #2D4F36;
+  --color-muted: #647067;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E5E5;
+  --color-danger: #B42318;
+  --radius-xl: 24px;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: var(--font-space);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .wizard-wrapper {
+    @apply relative min-h-screen flex flex-col;
+  }
+
+  .step-content {
+    @apply max-w-2xl mx-auto w-full px-8 py-12 flex-grow flex flex-col justify-center;
+  }
+
+  .step-title {
+    @apply text-4xl md:text-5xl font-bold tracking-tight mb-4;
+    text-wrap: balance;
+  }
+
+  .step-subtitle {
+    @apply text-lg text-muted mb-12 max-w-md;
+  }
+
+  .input-large {
+    @apply block w-full bg-transparent border-b-2 border-foreground/10 py-6 text-3xl md:text-4xl font-semibold 
+           focus:outline-hidden focus:border-accent transition-all duration-300 placeholder:text-foreground/10;
+  }
+
+  .select-large {
+    @apply block w-full bg-transparent border-b-2 border-foreground/10 py-6 text-2xl md:text-3xl font-semibold 
+           focus:outline-hidden focus:border-accent transition-all duration-300 appearance-none cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-8 py-5 bg-foreground text-background font-bold rounded-full 
+           hover:bg-accent hover:text-white transition-all duration-300 active:scale-95 disabled:opacity-30;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted hover:text-foreground transition-colors duration-300 cursor-pointer;
+  }
+
+  .receipt-card {
+    @apply bg-surface border border-border rounded-xl p-8 shadow-sm;
+  }
+
+  .stat-label {
+    @apply text-xs font-bold uppercase tracking-wider text-muted mb-1;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-foreground;
+  }
+
+  .progress-dot {
+    @apply w-2 h-2 rounded-full bg-border transition-all duration-300;
+  }
+
+  .progress-dot.active {
+    @apply w-6 bg-accent;
+  }
+}
+
+/* Transitions */
+.step-content {
+  transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1), transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step-content.hidden {
+  display: none !important;
+}
+
+.step-content:not(.active) {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+
+.step-content.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.loader-minimal {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-accent);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

@@ -3,164 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cookstove Pellet Calculator</title>
+    <title>Pellet Calculator — Cookstove Planning</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
-    <div class="container">
-        <header class="site-header">
-            <p class="eyebrow">Cookstove planning tool</p>
-            <h1>Pellet Calculator</h1>
-            <p>Estimate cooking time and hopper load using the current 1 Hz simulation engine.</p>
-        </header>
-
-        <main id="app">
-            <!-- Loading State -->
-            <div id="loading" class="panel text-center">
-                <p>Loading calculator data…</p>
+<body class="bg-background text-foreground">
+    <div id="app" class="wizard-wrapper">
+        <!-- Navigation Header -->
+        <nav class="fixed top-0 left-0 right-0 p-8 flex justify-between items-center z-50">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white font-bold text-xs">P</div>
+                <span class="text-xs font-bold uppercase tracking-widest opacity-40">Pellet Calc v2.0</span>
             </div>
+            <button id="btn-restart-top" class="btn-ghost hidden">Restart</button>
+        </nav>
 
-            <!-- Configuration Form -->
-            <form id="config-form" class="panel hidden">
-                <div class="panel-heading"><div><p class="eyebrow">Step 1 of 3</p><h2>Cooking setup</h2></div><p class="panel-help">Use the vessel’s actual mass when known.</p></div>
-                <div id="form-message" class="message hidden" role="alert" aria-live="assertive"></div>
+        <!-- Main Wizard Content -->
+        <main class="flex-grow flex flex-col justify-center">
+            
+            <!-- Step 0: Welcome -->
+            <section id="step-welcome" class="step-content active">
+                <h1 class="step-title">Optimize your cook with precision.</h1>
+                <p class="step-subtitle">A professional simulation tool to estimate cooking time and recommended hopper load for pellet-based cookstoves.</p>
+                <div>
+                    <button id="btn-start" class="btn-primary">Start planning <span class="ml-2">→</span></button>
+                </div>
+            </section>
+
+            <!-- Wizard Form (Step-by-step) -->
+            <form id="wizard-form" class="hidden">
                 
-                <div class="form-group">
-                    <label for="dish_name">Dish Selection</label>
-                    <select id="dish_name" name="dish_name" required></select>
-                </div>
-
-                <div class="form-group">
-                    <label id="qty_label" for="qty">Quantity</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="qty" name="qty" step="any" required>
-                        <span id="qty_unit" class="unit"></span>
+                <!-- Step 1: Dish -->
+                <section id="step-dish" class="step-content">
+                    <p class="stat-label">01 / 08 — Selection</p>
+                    <h2 class="step-title">What are you cooking today?</h2>
+                    <select id="dish_name" name="dish_name" class="select-large" required></select>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
                     </div>
-                </div>
+                </section>
 
-                <div class="form-group">
-                    <label for="t_ambient_c">Ambient Temperature</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="t_ambient_c" name="t_ambient_c" value="25" step="0.1" required>
-                        <span class="unit">°C</span>
+                <!-- Step 2: Quantity -->
+                <section id="step-qty" class="step-content">
+                    <p class="stat-label">02 / 08 — Volume</p>
+                    <h2 id="qty_label" class="step-title">Quantity</h2>
+                    <div class="relative">
+                        <input type="number" id="qty" name="qty" class="input-large" step="any" required>
+                        <span id="qty_unit" class="absolute right-0 bottom-6 text-xl font-bold opacity-30"></span>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="wind_label">Wind Factor / Environment</label>
-                    <select id="wind_label" name="wind_label" required></select>
-                </div>
-
-                <div class="form-group">
-                    <label for="pellet_name">Pellet Type</label>
-                    <select id="pellet_name" name="pellet_name" required></select>
-                </div>
-
-                <div class="form-group">
-                    <label for="utensil_name">Utensil</label>
-                    <select id="utensil_name" name="utensil_name" required></select>
-                </div>
-
-                <div class="form-group">
-                    <label for="m_pot">Vessel Mass (Override)</label>
-                    <div class="input-with-unit">
-                        <input type="number" id="m_pot" name="m_pot" step="0.001" required>
-                        <span class="unit">kg</span>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
                     </div>
-                </div>
+                </section>
 
-                <div class="form-group" id="lid_group">
-                    <label for="lid_state">Lid State</label>
-                    <select id="lid_state" name="lid_state">
+                <!-- Step 3: Temperature -->
+                <section id="step-temp" class="step-content">
+                    <p class="stat-label">03 / 08 — Ambient</p>
+                    <h2 class="step-title">What's the outside temperature?</h2>
+                    <div class="relative">
+                        <input type="number" id="t_ambient_c" name="t_ambient_c" class="input-large" value="25" step="0.1" required>
+                        <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">°C</span>
+                    </div>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
+                    </div>
+                </section>
+
+                <!-- Step 4: Wind -->
+                <section id="step-wind" class="step-content">
+                    <p class="stat-label">04 / 08 — Environment</p>
+                    <h2 class="step-title">How is the wind condition?</h2>
+                    <select id="wind_label" name="wind_label" class="select-large" required></select>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
+                    </div>
+                </section>
+
+                <!-- Step 5: Pellets -->
+                <section id="step-pellets" class="step-content">
+                    <p class="stat-label">05 / 08 — Fuel</p>
+                    <h2 class="step-title">Select your pellet type.</h2>
+                    <select id="pellet_name" name="pellet_name" class="select-large" required></select>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
+                    </div>
+                </section>
+
+                <!-- Step 6: Utensil -->
+                <section id="step-utensil" class="step-content">
+                    <p class="stat-label">06 / 08 — Vessel</p>
+                    <h2 class="step-title">Choose your cooking vessel.</h2>
+                    <select id="utensil_name" name="utensil_name" class="select-large" required></select>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
+                    </div>
+                </section>
+
+                <!-- Step 7: Mass -->
+                <section id="step-mass" class="step-content">
+                    <p class="stat-label">07 / 08 — Calibration</p>
+                    <h2 class="step-title">Confirm vessel mass.</h2>
+                    <div class="relative">
+                        <input type="number" id="m_pot" name="m_pot" class="input-large" step="0.001" required>
+                        <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">kg</span>
+                    </div>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next">Next</button>
+                    </div>
+                </section>
+
+                <!-- Step 8: Lid (Conditional) -->
+                <section id="step-lid" class="step-content">
+                    <p class="stat-label">08 / 08 — Setup</p>
+                    <h2 class="step-title">Will you use a lid?</h2>
+                    <select id="lid_state" name="lid_state" class="select-large">
                         <option value="ON">Lid ON (covered)</option>
                         <option value="OFF">Lid OFF (open)</option>
                     </select>
-                </div>
-
-                <button type="submit" class="btn">Review estimate <span aria-hidden="true">→</span></button>
+                    <div class="mt-12 flex justify-between items-center">
+                        <button type="button" class="btn-ghost btn-prev">Back</button>
+                        <button type="button" class="btn-primary btn-next" id="btn-to-review">Review</button>
+                    </div>
+                </section>
             </form>
 
-            <!-- Preview & Confirm -->
-            <div id="preview-panel" class="panel hidden">
-                <div class="panel-heading"><div><p class="eyebrow">Step 2 of 3</p><h2>Review cooking time</h2></div><p class="panel-help">The suggested time includes a safety buffer. You can adjust it.</p></div>
-                <div class="stats-grid">
-                    <div class="stat">
-                        <span class="label">Heat-up time</span>
-                        <span class="value" id="preview_heat"></span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Boil time</span>
-                        <span class="value" id="preview_boil"></span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Kinetic time</span>
-                        <span class="value" id="preview_kinetic"></span>
-                    </div>
-                    <div class="stat">
-                        <span class="label">Safety buffer</span>
-                        <span class="value" id="preview_buffer"></span>
+            <!-- Review Step -->
+            <section id="step-review" class="step-content hidden">
+                <h2 class="step-title text-balance">Review your setup.</h2>
+                <div id="review-summary" class="grid grid-cols-2 gap-4 mb-12">
+                    <!-- Dynamic summary items -->
+                </div>
+                <div class="mb-12 p-6 bg-accent/5 rounded-2xl border border-accent/10">
+                    <p class="text-sm font-bold uppercase tracking-widest text-accent mb-2">Simulation Preview</p>
+                    <div id="preview-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <!-- Preview stats -->
                     </div>
                 </div>
-
-                <div class="total-time-confirm">
-                    <label for="t_total_min">Hardware-calculated cooking time (minutes)</label>
-                    <input type="number" id="t_total_min" name="t_total_min" step="0.1" readonly aria-describedby="time-help">
-                    <p id="time-help" class="panel-help">This is calculated from the hardware model’s heat-up, cooking, and safety-buffer rules.</p>
+                <div class="flex justify-between items-center">
+                    <button type="button" class="btn-ghost" id="btn-back-to-form">Back</button>
+                    <button type="button" class="btn-primary" id="btn-simulate">Run Calculation</button>
                 </div>
+            </section>
 
-                <div class="actions">
-                    <button id="btn-back" type="button" class="btn btn-outline">Back</button>
-                    <button id="btn-simulate" type="button" class="btn">Run calculation <span aria-hidden="true">→</span></button>
+            <!-- Simulating State -->
+            <section id="step-simulating" class="step-content hidden text-center">
+                <div class="mb-6"><span class="loader-minimal"></span></div>
+                <h2 class="text-2xl font-bold">Running Simulation</h2>
+                <p class="text-muted mt-2">Analyzing thermodynamic demand...</p>
+            </section>
+
+            <!-- Receipt Step -->
+            <section id="step-receipt" class="step-content hidden">
+                <div class="flex items-center gap-2 text-accent font-bold uppercase tracking-widest text-xs mb-4">
+                    <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
+                    Recommendation Ready
                 </div>
-            </div>
-
-            <!-- Simulation Running -->
-            <div id="simulating" class="panel text-center hidden">
-                <p class="eyebrow">Step 3 of 3</p><p>Running the 1 Hz transient calculation…</p>
-                <div class="loader"></div>
-            </div>
-
-            <!-- Receipt -->
-            <div id="receipt-panel" class="panel receipt hidden">
-                <div class="receipt-header">
-                    <p class="eyebrow">Calculation complete</p>
-                    <h2>Pellet load recommendation</h2>
-                </div>
+                <h1 class="text-5xl md:text-7xl font-bold mb-8" id="receipt-pellets">-- g</h1>
                 
-                <div class="receipt-section">
-                    <h3>Cooking setup</h3>
-                    <table class="receipt-table" id="receipt-inputs"></table>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                    <div class="receipt-card">
+                        <h3 class="stat-label">Time Estimates</h3>
+                        <div id="receipt-times" class="space-y-4 mt-4"></div>
+                    </div>
+                    <div class="receipt-card">
+                        <h3 class="stat-label">Energy Summary</h3>
+                        <div id="receipt-energy" class="space-y-4 mt-4"></div>
+                    </div>
                 </div>
 
-                <div class="receipt-section">
-                    <h3>Time estimate</h3>
-                    <table class="receipt-table" id="receipt-times"></table>
-                </div>
+                <div id="receipt-safety" class="mb-12"></div>
 
-                <div class="receipt-section">
-                    <h3>Energy summary</h3>
-                    <table class="receipt-table" id="receipt-energy"></table>
-                </div>
+                <button id="btn-restart" class="btn-primary">New Calculation</button>
+            </section>
 
-                <div class="receipt-section">
-                    <h3>Safety checks</h3>
-                    <div id="receipt-safety"></div>
-                </div>
-
-                <div class="receipt-section final-recommendation">
-                    <h3>Recommended hopper load</h3>
-                    <div class="pellet-highlight" id="receipt-pellets"></div>
-                    <p class="footnote">Formula: (t_elapsed / 3600) × FAN_HIGH × 1000</p>
-                    <p class="footnote" id="receipt-pellets-details"></p>
-                </div>
-
-                <button id="btn-restart" type="button" class="btn btn-full">Start another calculation</button>
-            </div>
         </main>
+
+        <!-- Footer Progress -->
+        <footer id="progress-footer" class="fixed bottom-0 left-0 right-0 p-8 flex justify-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
+            <!-- Progress dots generated by JS -->
+        </footer>
     </div>
-    <script src="/static/script.js"></script>
+
+    <script src="/static/js/script.js"></script>
 </body>
 </html>
