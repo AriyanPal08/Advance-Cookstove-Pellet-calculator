@@ -1,4 +1,4 @@
-\# =============================================================================
+# =============================================================================
 # hardware/main.py — ESP32 MicroPython Master Boot Script
 # IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
 #
@@ -417,29 +417,29 @@ def menu_adjust_int(title, unit, default, lo, hi):
 # =============================================================================
 
 UTENSIL_CAPACITY_L = {
-    "Aluminium Pot 1L": 1.0,
-    "Aluminium Pot 2L": 2.0,
-    "Aluminium Pot 3L": 3.0,
-    "Aluminium Pot 5L": 5.0,
-    "Aluminium Pot 8L": 8.0,
-    "Aluminium Pot 10L": 10.0,
-    "Pressure Cooker 1.5L": 1.5,
-    "Pressure Cooker 2L": 2.0,
-    "Pressure Cooker 3L": 3.0,
-    "Pressure Cooker 5L": 5.0,
-    "Pressure Cooker 7.5L": 7.5,
-    "Pressure Cooker 10L": 10.0,
-    "Kadhai / Wok 1.5L": 1.5,
-    "Kadhai / Wok 2.5L": 2.5,
-    "Kadhai / Wok 3.5L": 3.5,
-    "Kadhai / Wok 4L": 4.0,
-    "Kadhai / Wok 6L": 6.0,
-    "Stainless Steel Pot 3L": 3.0,
-    "Stainless Steel Pot 5L": 5.0,
-    "Stainless Steel Kadhai 2.5L": 2.5,
-    "Cast Iron Tawa": 0.5,
-    "Cast Iron Frying Pan 26cm": 1.5,
-    "Cast Iron Kadhai 2L": 2.0,
+    "AL Pot 1L": 1.0,
+    "AL Pot 2L": 2.0,
+    "AL Pot 3L": 3.0,
+    "AL Pot 5L": 5.0,
+    "AL Pot 8L": 8.0,
+    "AL Pot 10L": 10.0,
+    "Cooker 1.5L": 1.5,
+    "Cooker 2L": 2.0,
+    "Cooker 3L": 3.0,
+    "Cooker 5L": 5.0,
+    "Cooker 7.5L": 7.5,
+    "Cooker 10L": 10.0,
+    "Kadhai 1.5L": 1.5,
+    "Kadhai 2.5L": 2.5,
+    "Kadhai 3.5L": 3.5,
+    "Kadhai 4L": 4.0,
+    "Kadhai 6L": 6.0,
+    "Steel Pot 3L": 3.0,
+    "Steel Pot 5L": 5.0,
+    "Steel Kadhai 2.5L": 2.5,
+    "Iron Tawa": 0.5,
+    "Iron BIG PAN": 1.5,
+    "Iron Kadhai 2L": 2.0,
 }
 
 # Per-dish utensil type preference: what utensil category is needed
@@ -610,7 +610,7 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("IIT DELHI STOVE", "Press to start")
+    lcd_show("TADKA CHULHA", "PELLET CALCULATOR")
     boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
