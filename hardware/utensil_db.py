@@ -216,7 +216,7 @@ UTENSIL_CATEGORIES = [
         "Kadhai 2.5L",
         "Kadhai 3.5L",
         "Kadhai 4L",
-        "Kadhai 6L,
+        "Kadhai 6L",
     ]),
     ("AL  Pot", [
         "AL Pot 1L",
