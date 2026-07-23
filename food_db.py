@@ -852,8 +852,7 @@ FOOD_DB: dict[str, DishProfile] = {
             "Ref: Ofstad et al. (1996); McGee (2004)."
         ),
     ),
-
-    # =========================================================================
+    
     # PANEER BUTTER MASALA
     # =========================================================================
     # Cp = 3.133 kJ/kg·K  (Paneer + tomato-cream gravy composite)

@@ -22,6 +22,7 @@ def init_data():
         d = FOOD_DB[name]
         dishes.append({
             "name": name,
+            "category": d.category,
             "variable_water": d.variable_water,
             "qty_prompt": d.qty_prompt if getattr(d, 'qty_prompt', '') else ("Volume of Water (Litres)" if d.variable_water else "Number of people"),
             "qty_unit": getattr(d, 'qty_unit', ''),
@@ -31,7 +32,14 @@ def init_data():
             "qty_default": getattr(d, 'qty_default', 5.0 if d.variable_water else 2)
         })
     
-    pellets = get_pellet_names()
+    pellets = []
+    for name in get_pellet_names():
+        pellet = PELLET_DB[name]
+        pellets.append({
+            "name": name,
+            "category": pellet.category,
+            "gcv_range_kcal": pellet.gcv_range_kcal,
+        })
     utensils = []
     for name in get_utensil_names():
         u = get_utensil(name)

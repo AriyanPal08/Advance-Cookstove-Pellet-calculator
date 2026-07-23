@@ -1,198 +1,385 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pellet Calculator — Cookstove Planning</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tadka Chulha — Advanced Pellet Calculator</title>
+  <meta name="description" content="Precision pellet load and cook-time calculator for the Tadka Chulha biomass cookstove. Physics-based 1 Hz thermal simulation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="bg-background text-foreground">
-    <div id="app" class="wizard-wrapper">
-        <!-- Navigation Header -->
-        <nav class="fixed top-0 left-0 right-0 p-8 flex justify-between items-center z-50">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white font-bold text-xs">P</div>
-                <span class="text-xs font-bold uppercase tracking-widest opacity-40">Pellet Calc v2.0</span>
-            </div>
-            <button id="btn-restart-top" class="btn-ghost hidden">Restart</button>
-        </nav>
+<body>
 
-        <!-- Main Wizard Content -->
-        <main class="flex-grow flex flex-col justify-center">
-            
-            <!-- Step 0: Welcome -->
-            <section id="step-welcome" class="step-content active">
-                <h1 class="step-title">Optimize your cook with precision.</h1>
-                <p class="step-subtitle">A professional simulation tool to estimate cooking time and recommended hopper load for pellet-based cookstoves.</p>
-                <div>
-                    <button id="btn-start" class="btn-primary">Start planning <span class="ml-2">→</span></button>
-                </div>
-            </section>
+<header class="site-header" id="site-header">
+  <div class="header-brand">
+    <div class="header-wordmark">TADKA CHULHA</div>
+    <div class="header-subtitle">Advanced Pellet Calculator</div>
+  </div>
+  <nav class="header-nav">
+    <a href="#hero-section" data-nav="hero">Home</a>
+    <a href="#learn-more" data-nav="learn">Learn More</a>
+    <a href="#calculator-section" data-nav="calculator">Calculator</a>
+    <button id="btn-restart-top" class="btn-ghost hidden">Restart</button>
+  </nav>
+</header>
 
-            <!-- Wizard Form (Step-by-step) -->
-            <form id="wizard-form" class="hidden">
-                
-                <!-- Step 1: Dish -->
-                <section id="step-dish" class="step-content">
-                    <p class="stat-label">01 / 08 — Selection</p>
-                    <h2 class="step-title">What are you cooking today?</h2>
-                    <select id="dish_name" name="dish_name" class="select-large" required></select>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 2: Quantity -->
-                <section id="step-qty" class="step-content">
-                    <p class="stat-label">02 / 08 — Volume</p>
-                    <h2 id="qty_label" class="step-title">Quantity</h2>
-                    <div class="relative">
-                        <input type="number" id="qty" name="qty" class="input-large" step="any" required>
-                        <span id="qty_unit" class="absolute right-0 bottom-6 text-xl font-bold opacity-30"></span>
-                    </div>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 3: Temperature -->
-                <section id="step-temp" class="step-content">
-                    <p class="stat-label">03 / 08 — Ambient</p>
-                    <h2 class="step-title">What's the outside temperature?</h2>
-                    <div class="relative">
-                        <input type="number" id="t_ambient_c" name="t_ambient_c" class="input-large" value="25" step="0.1" required>
-                        <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">°C</span>
-                    </div>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 4: Wind -->
-                <section id="step-wind" class="step-content">
-                    <p class="stat-label">04 / 08 — Environment</p>
-                    <h2 class="step-title">How is the wind condition?</h2>
-                    <select id="wind_label" name="wind_label" class="select-large" required></select>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 5: Pellets -->
-                <section id="step-pellets" class="step-content">
-                    <p class="stat-label">05 / 08 — Fuel</p>
-                    <h2 class="step-title">Select your pellet type.</h2>
-                    <select id="pellet_name" name="pellet_name" class="select-large" required></select>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 6: Utensil -->
-                <section id="step-utensil" class="step-content">
-                    <p class="stat-label">06 / 08 — Vessel</p>
-                    <h2 class="step-title">Choose your cooking vessel.</h2>
-                    <select id="utensil_name" name="utensil_name" class="select-large" required></select>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 7: Mass -->
-                <section id="step-mass" class="step-content">
-                    <p class="stat-label">07 / 08 — Calibration</p>
-                    <h2 class="step-title">Confirm vessel mass.</h2>
-                    <div class="relative">
-                        <input type="number" id="m_pot" name="m_pot" class="input-large" step="0.001" required>
-                        <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">kg</span>
-                    </div>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next">Next</button>
-                    </div>
-                </section>
-
-                <!-- Step 8: Lid (Conditional) -->
-                <section id="step-lid" class="step-content">
-                    <p class="stat-label">08 / 08 — Setup</p>
-                    <h2 class="step-title">Will you use a lid?</h2>
-                    <select id="lid_state" name="lid_state" class="select-large">
-                        <option value="ON">Lid ON (covered)</option>
-                        <option value="OFF">Lid OFF (open)</option>
-                    </select>
-                    <div class="mt-12 flex justify-between items-center">
-                        <button type="button" class="btn-ghost btn-prev">Back</button>
-                        <button type="button" class="btn-primary btn-next" id="btn-to-review">Review</button>
-                    </div>
-                </section>
-            </form>
-
-            <!-- Review Step -->
-            <section id="step-review" class="step-content hidden">
-                <h2 class="step-title text-balance">Review your setup.</h2>
-                <div id="review-summary" class="grid grid-cols-2 gap-4 mb-12">
-                    <!-- Dynamic summary items -->
-                </div>
-                <div class="mb-12 p-6 bg-accent/5 rounded-2xl border border-accent/10">
-                    <p class="text-sm font-bold uppercase tracking-widest text-accent mb-2">Simulation Preview</p>
-                    <div id="preview-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <!-- Preview stats -->
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <button type="button" class="btn-ghost" id="btn-back-to-form">Back</button>
-                    <button type="button" class="btn-primary" id="btn-simulate">Run Calculation</button>
-                </div>
-            </section>
-
-            <!-- Simulating State -->
-            <section id="step-simulating" class="step-content hidden text-center">
-                <div class="mb-6"><span class="loader-minimal"></span></div>
-                <h2 class="text-2xl font-bold">Running Simulation</h2>
-                <p class="text-muted mt-2">Analyzing thermodynamic demand...</p>
-            </section>
-
-            <!-- Receipt Step -->
-            <section id="step-receipt" class="step-content hidden">
-                <div class="flex items-center gap-2 text-accent font-bold uppercase tracking-widest text-xs mb-4">
-                    <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
-                    Recommendation Ready
-                </div>
-                <h1 class="text-5xl md:text-7xl font-bold mb-8" id="receipt-pellets">-- g</h1>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                    <div class="receipt-card">
-                        <h3 class="stat-label">Time Estimates</h3>
-                        <div id="receipt-times" class="space-y-4 mt-4"></div>
-                    </div>
-                    <div class="receipt-card">
-                        <h3 class="stat-label">Energy Summary</h3>
-                        <div id="receipt-energy" class="space-y-4 mt-4"></div>
-                    </div>
-                </div>
-
-                <div id="receipt-safety" class="mb-12"></div>
-
-                <button id="btn-restart" class="btn-primary">New Calculation</button>
-            </section>
-
-        </main>
-
-        <!-- Footer Progress -->
-        <footer id="progress-footer" class="fixed bottom-0 left-0 right-0 p-8 flex justify-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300">
-            <!-- Progress dots generated by JS -->
-        </footer>
+<section id="hero-section" class="hero-section">
+  <!-- ⚠️ BADGE TYPO: Physical unit badge reads 'Deliciouly Traditional... Impressively EcoFreindly' (misspelled). Owner decision pending: crop/reshoot/leave-as-is. -->
+  <div class="hero-bg" style="background-image: url('/static/img/hero/tadka-chulha-full-unit.jpg')"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <h1>TADKA CHULHA</h1>
+    <p class="hero-tagline">Precision-engineered biomass cookstove with physics-based pellet load calculation. Know exactly how much fuel you need before you light the fire.</p>
+    <div class="hero-cta-group">
+      <a href="#learn-more" class="btn-hero-primary">Learn How It Works</a>
+      <a href="#calculator-section" class="btn-hero-secondary" id="btn-hero-calculate">Start Calculating →</a>
     </div>
+    <div class="hero-beats">
+      <div class="hero-beat">
+        <div class="beat-number">01</div>
+        <div class="beat-title">Choose Your Dish</div>
+        <div class="beat-desc">23 Indian dishes with precise thermal properties</div>
+      </div>
+      <div class="hero-beat">
+        <div class="beat-number">02</div>
+        <div class="beat-title">Set Conditions</div>
+        <div class="beat-desc">Pellet type, vessel, wind, and ambient temperature</div>
+      </div>
+      <div class="hero-beat">
+        <div class="beat-number">03</div>
+        <div class="beat-title">Get Results</div>
+        <div class="beat-desc">Exact pellet load and cook time from 1 Hz simulation</div>
+      </div>
+    </div>
+  </div>
+</section>
 
-    <script src="/static/js/script.js"></script>
+<section id="learn-more" class="learn-section">
+  <div class="learn-header">
+    <p class="stat-label">Methodology</p>
+    <h2>How the Simulation Works</h2>
+    <p>A transparent look at every input, every physics factor, and the real research behind the numbers.</p>
+  </div>
+  <div class="scrolly-container">
+    <div class="scrolly-image-panel">
+      <div class="scrolly-image" id="scroll-image-panel" style="background-image: url('/static/img/hero/tadka-chulha-top-down.jpg')"></div>
+    </div>
+    <div class="scrolly-text-panels">
+      <!-- Panel 1 -->
+      <div class="scroll-panel is-active" data-panel="0" data-image="/static/img/hero/tadka-chulha-top-down.jpg">
+        <h3>🔥 The Problem</h3>
+        <p>Biomass cookstove users currently guess pellet load and cook time, leading to wasted fuel, under-cooked meals, or dangerous overheating. The Tadka Chulha simulator replaces guesswork with physics.</p>
+        <p>This tool runs a <strong>1 Hz transient thermal simulation</strong> — a discretized numerical model that steps through every second of the cooking process, tracking heat flow in and out of the system.</p>
+      </div>
+      <!-- Panel 2 -->
+      <div class="scroll-panel" data-panel="1" data-image="/static/img/hero/tadka-chulha-full-unit.jpg">
+        <h3>⚡ The Physics Model</h3>
+        <p>Every second, the simulator computes: pellet combustion heat input, convective and radiative heat loss (Stefan–Boltzmann law), sensible heating of food, water, and vessel, and latent heat of water evaporation.</p>
+        <p>This is <strong>not a static formula</strong> — it's a full transient loop that tracks temperature rise, boiling onset, evaporation rate, and dry-boil conditions second by second.</p>
+        <div class="citation">Model architecture: 1 Hz loop with Euler-method integration. Vessel geometry from measured Indian cookware dimensions.</div>
+      </div>
+      <!-- Panel 3 -->
+      <div class="scroll-panel" data-panel="2" data-image="/static/img/collages/pellet-collage.jpg">
+        <h3>📊 Every Input, Explained</h3>
+        <p><strong>Dish</strong> — Food mass, added water, specific heat capacity from Choi & Okos (1986), ICMR-NIN (2017) Indian Food Composition Tables, CSIR-CFTRI (2020), and Singh (2007) hydration kinetics.</p>
+        <p><strong>Pellet type</strong> — Gross Calorific Value (GCV) range and combustion kinetics from Mukunda et al. (2010), IISc Bangalore gasifier data.</p>
+        <p><strong>Utensil</strong> — Mass, material specific heat, emissivity from NIST WebBook, Incropera et al. (2007), MacCarty et al. (2010), Energy Sustain. Dev.</p>
+        <p><strong>Ambient & Wind</strong> — Convective heat-transfer coefficient scaled by wind tier (Calm, Light, Moderate, Strong).</p>
+        <div class="citation">Choi & Okos, 1986 · ICMR-NIN, 2017 · Mukunda et al., 2010 · Incropera et al., 2007 · MacCarty et al., 2010</div>
+      </div>
+      <!-- Panel 4 -->
+      <div class="scroll-panel" data-panel="3" data-image="/static/img/hero/tadka-chulha-top-down.jpg">
+        <h3>🔬 Lid & Pressure Cooker</h3>
+        <p><strong>Lid state</strong> — Open, covered, or sealed pressure cooker each dramatically change evaporation rate and heat loss.</p>
+        <p><strong>Pressure cooker correction</strong> — An Arrhenius-kinetics-derived, empirically-calibrated correction for post-whistle cooking speed. This is currently validated against a limited number of physical tests and is still being refined.</p>
+        <p><em>Note: The pressure cooker model is under active calibration. Do not treat these estimates as fully validated — they are best-effort approximations pending further field testing.</em></p>
+        <div class="citation">Arrhenius kinetics model with empirical calibration factors. Field validation in progress.</div>
+      </div>
+      <!-- Panel 5 -->
+      <div class="scroll-panel" data-panel="4" data-image="/static/img/hero/tadka-chulha-full-unit.jpg">
+        <h3>📋 The Output</h3>
+        <p>The simulation produces: heat-up time to boiling, kinetic/cooking time for the recipe, a safety buffer scaled to thermal mass and wind conditions, and the total recommended cook time.</p>
+        <p>From the total time and combustion rate, the tool computes the <strong>exact pellet mass</strong> needed, with a procurement margin that varies by cooking mode (open pot vs. covered vs. pressure cooker).</p>
+        <p><strong>Validation status:</strong> Lab-tested against a growing set of dishes. Field validation is in progress — accuracy numbers will be published as testing expands.</p>
+        <div class="citation">Safety buffer model accounts for thermal inertia, wind exposure, and vessel geometry.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="calculator-section" class="calculator-section">
+  <div id="app" class="wizard-wrapper">
+    <main class="flex-grow flex flex-col justify-center">
+      
+      <!-- Step 0: Welcome -->
+      <section id="step-welcome" class="step-content active">
+        <p class="stat-label">Advanced Calculator</p>
+        <h1 class="step-title">Optimize your cook with precision.</h1>
+        <p class="step-subtitle">A professional simulation tool to estimate cooking time and recommended hopper load for pellet-based cookstoves.</p>
+        <div>
+          <button id="btn-start" class="btn-primary">Start planning <span class="ml-2">→</span></button>
+        </div>
+      </section>
+
+      <!-- Wizard Form -->
+      <form id="wizard-form" class="hidden">
+        
+        <!-- Step 1: Dish -->
+        <section id="step-dish" class="step-content">
+          <p class="stat-label">01 / 08 — Selection</p>
+          <h2 class="step-title">What are you cooking today?</h2>
+          <!-- Collage Banner -->
+          <div class="collage-banner collage-banner--food">
+            <div class="collage-overlay"></div>
+            <div class="collage-caption">
+              <h3>23 Indian Dishes</h3>
+              <p>Each with precise thermal properties from food science literature</p>
+            </div>
+          </div>
+          <div class="search-container mb-4 relative">
+            <input type="search" id="search-dish" class="input-search" placeholder="Search dishes (e.g., Aloo Gobi)..." aria-label="Search dishes">
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+          </div>
+          <div class="selection-explorer" data-explorer="dish">
+            <div class="selection-collage selection-collage--food" aria-hidden="true"></div>
+            <div class="selection-list" id="dish-cards" aria-label="Dish options"></div>
+          </div>
+          <select id="dish_name" name="dish_name" class="select-large sr-only" required></select>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 2: Quantity -->
+        <section id="step-qty" class="step-content">
+          <p class="stat-label">02 / 08 — Volume</p>
+          <h2 id="qty_label" class="step-title">Quantity</h2>
+          <div class="relative">
+            <input type="number" id="qty" name="qty" class="input-large" step="any" required>
+            <span id="qty_unit" class="absolute right-0 bottom-6 text-xl font-bold opacity-30"></span>
+          </div>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 3: Temperature -->
+        <section id="step-temp" class="step-content">
+          <p class="stat-label">03 / 08 — Ambient</p>
+          <h2 class="step-title">What's the outside temperature?</h2>
+          <div class="relative">
+            <input type="number" id="t_ambient_c" name="t_ambient_c" class="input-large" value="25" step="0.1" required>
+            <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">°C</span>
+          </div>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 4: Wind -->
+        <section id="step-wind" class="step-content">
+          <p class="stat-label">04 / 08 — Environment</p>
+          <h2 class="step-title">How is the wind condition?</h2>
+          <select id="wind_label" name="wind_label" class="select-large" required></select>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 5: Pellets -->
+        <section id="step-pellets" class="step-content">
+          <p class="stat-label">05 / 08 — Fuel</p>
+          <h2 class="step-title">Select your pellet type.</h2>
+          <div class="collage-banner collage-banner--pellets">
+            <div class="collage-overlay"></div>
+            <div class="collage-caption">
+              <h3>16 Biomass Pellet Types</h3>
+              <p>GCV data from Mukunda et al. (2010), IISc Bangalore</p>
+            </div>
+          </div>
+          <div class="search-container mb-4 relative">
+            <input type="search" id="search-pellet" class="input-search" placeholder="Search pellets..." aria-label="Search pellets">
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+          </div>
+          <div class="selection-explorer" data-explorer="pellet">
+            <div class="selection-collage selection-collage--pellets" aria-hidden="true"></div>
+            <div class="selection-list" id="pellet-cards" aria-label="Pellet options"></div>
+          </div>
+          <select id="pellet_name" name="pellet_name" class="select-large sr-only" required></select>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 6: Utensil -->
+        <section id="step-utensil" class="step-content">
+          <p class="stat-label">06 / 08 — Vessel</p>
+          <h2 class="step-title">Choose your cooking vessel.</h2>
+          <div class="collage-banner collage-banner--utensils">
+            <div class="collage-overlay"></div>
+            <div class="collage-caption">
+              <h3>23 Vessels · 5 Categories</h3>
+              <p>Thermal data from NIST, Incropera et al. (2007)</p>
+            </div>
+          </div>
+          <div class="search-container mb-4 relative">
+            <input type="search" id="search-utensil" class="input-search" placeholder="Search vessels..." aria-label="Search utensils">
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+          </div>
+          <div class="selection-explorer" data-explorer="utensil">
+            <div class="selection-collage selection-collage--utensils" aria-hidden="true"></div>
+            <div class="selection-list" id="utensil-cards" aria-label="Utensil options"></div>
+          </div>
+          <select id="utensil_name" name="utensil_name" class="select-large sr-only" required></select>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 7: Mass -->
+        <section id="step-mass" class="step-content">
+          <p class="stat-label">07 / 08 — Calibration</p>
+          <h2 class="step-title">Confirm vessel mass.</h2>
+          <div class="relative">
+            <input type="number" id="m_pot" name="m_pot" class="input-large" step="0.001" required>
+            <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">kg</span>
+          </div>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next">Next</button>
+          </div>
+        </section>
+
+        <!-- Step 8: Lid -->
+        <section id="step-lid" class="step-content">
+          <p class="stat-label">08 / 08 — Setup</p>
+          <h2 class="step-title">Will you use a lid?</h2>
+          <select id="lid_state" name="lid_state" class="select-large">
+            <option value="ON">Lid ON (covered)</option>
+            <option value="OFF">Lid OFF (open)</option>
+          </select>
+          <div class="mt-12 flex justify-between items-center">
+            <button type="button" class="btn-ghost btn-prev">Back</button>
+            <button type="button" class="btn-primary btn-next" id="btn-to-review">Review</button>
+          </div>
+        </section>
+      </form>
+
+      <!-- Review Step -->
+      <section id="step-review" class="step-content hidden">
+        <h2 class="step-title text-balance">Review your setup.</h2>
+        <div id="review-summary" class="grid grid-cols-2 gap-4 mb-12"></div>
+        <div class="mb-12 p-6 review-preview-box">
+          <p class="stat-label text-accent">Simulation Preview</p>
+          <div id="preview-stats" class="grid grid-cols-2 gap-4"></div>
+        </div>
+        <div class="flex justify-between items-center">
+          <button type="button" class="btn-ghost" id="btn-back-to-form">Back</button>
+          <button type="button" class="btn-primary" id="btn-simulate">Run Calculation</button>
+        </div>
+      </section>
+
+      <!-- Simulating State -->
+      <section id="step-simulating" class="step-content hidden text-center">
+        <div class="calculating-bg" id="calculating-bg"></div>
+        <div class="calculating-content">
+          <div class="flame-loader" aria-hidden="true">
+            <div class="flame flame-1"></div>
+            <div class="flame flame-2"></div>
+            <div class="flame flame-3"></div>
+          </div>
+          <h2 class="text-2xl font-bold">Running Simulation</h2>
+          <p class="text-muted mt-2">Analyzing thermodynamic demand...</p>
+          <button type="button" class="mute-toggle" id="mute-toggle" title="Toggle sound" aria-label="Toggle cooking sound">
+            🔊
+          </button>
+        </div>
+      </section>
+
+      <!-- Receipt Step -->
+      <section id="step-receipt" class="step-content hidden">
+        <div class="flex items-center gap-2 text-accent font-bold uppercase tracking-widest text-xs mb-4">
+          <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
+          Recommendation Ready
+        </div>
+        <h1 class="text-5xl font-bold mb-8" id="receipt-pellets">-- g</h1>
+        <div class="grid grid-cols-1 gap-8 mb-12" id="receipt-grid">
+          <div class="receipt-card">
+            <h3 class="stat-label">Time Estimates</h3>
+            <div id="receipt-times" class="space-y-4 mt-4"></div>
+          </div>
+          <div class="receipt-card">
+            <h3 class="stat-label">Energy Summary</h3>
+            <div id="receipt-energy" class="space-y-4 mt-4"></div>
+          </div>
+        </div>
+        <div id="receipt-safety" class="mb-12"></div>
+        <button id="btn-restart" class="btn-primary">New Calculation</button>
+      </section>
+
+    </main>
+
+    <!-- Footer Progress -->
+    <footer id="progress-footer" class="fixed bottom-0 left-0 right-0 p-8 flex justify-center gap-2 opacity-0 pointer-events-none transition-opacity">
+    </footer>
+  </div>
+</section>
+
+<!-- PLACEHOLDER — PENDING LEGAL REVIEW. Do not publish without owner sign-off on institutional credit, code license, and trademark status. -->
+<footer class="site-footer">
+  <div class="footer-content">
+    <div class="footer-col">
+      <h4>About</h4>
+      <p>Tadka Chulha is a precision-engineered biomass pellet cookstove with an integrated thermal simulation engine for optimal fuel planning.</p>
+      <a href="#learn-more">Learn more about the methodology →</a>
+    </div>
+    <div class="footer-col">
+      <h4>Credits</h4>
+      <!-- ⚠️ PLACEHOLDER: Confirm exact institutional credit line before publishing -->
+      <p>Department of Energy Studies, IIT Delhi.</p>
+      <p>Physics model citations: Choi & Okos (1986), Mukunda et al. (2010), Incropera et al. (2007).</p>
+    </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <!-- ⚠️ PLACEHOLDER: Confirm actual code license before publishing -->
+      <p>© 2025 Tadka Chulha Project.</p>
+      <p>Dish, pellet, and utensil photography sourced under Unsplash/Pexels licenses.</p>
+      <p><a href="#" id="link-license">License</a> · <a href="#" id="link-attributions">Attributions</a></p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>This tool provides estimated cooking times and pellet loads based on a physical simulation model and is provided for planning purposes. Actual results vary with fuel quality, stove condition, and ambient conditions. Always monitor food while cooking.</p>
+  </div>
+</footer>
+
+<!-- License Modal -->
+<div class="modal-backdrop" id="modal-license">
+  <div class="modal-content">
+    <button class="modal-close" aria-label="Close">✕</button>
+    <h2 class="step-title" style="font-size:1.5rem">License</h2>
+    <!-- ⚠️ PLACEHOLDER: Confirm actual license type -->
+    <p>Simulation engine and hardware firmware license terms to be confirmed by the project owner.</p>
+  </div>
+</div>
+
+<!-- Attributions Modal -->
+<div class="modal-backdrop" id="modal-attributions">
+  <div class="modal-content">
+    <button class="modal-close" aria-label="Close">✕</button>
+    <h2 class="step-title" style="font-size:1.5rem">Attributions</h2>
+    <p>Photography sourced from Unsplash and Pexels under their respective free licenses. Full attribution list available in static/img/CREDITS.md.</p>
+    <p>Sound effects sourced from royalty-free libraries. Attribution in static/audio/CREDITS.md.</p>
+  </div>
+</div>
+
+<script src="/static/js/script.js"></script>
 </body>
 </html>

@@ -57,6 +57,11 @@
            focus:outline-hidden focus:border-accent transition-all duration-300 appearance-none cursor-pointer;
   }
 
+  .input-search {
+    @apply block w-full bg-surface border border-border rounded-xl py-3 pl-4 pr-10 text-base
+           focus:outline-hidden focus:border-accent focus:ring-1 focus:ring-accent transition-all duration-300;
+  }
+
   .btn-primary {
     @apply inline-flex items-center justify-center px-8 py-5 bg-foreground text-background font-bold rounded-full 
            hover:bg-accent hover:text-white transition-all duration-300 active:scale-95 disabled:opacity-30;

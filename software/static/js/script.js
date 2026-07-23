@@ -1,17 +1,17 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // UI State Management
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. STATE
     const state = {
         currentStepIndex: 0,
-        steps: [
-            'welcome', 'dish', 'qty', 'temp', 'wind', 'pellets', 'utensil', 'mass', 'lid', 'review', 'simulating', 'receipt'
-        ],
+        steps: ['welcome','dish','qty','temp','wind','pellets','utensil','mass','lid','review','simulating','receipt'],
         formData: {},
         appData: {},
-        results: null
+        results: null,
+        soundMuted: false
     };
 
-    // DOM Elements
+    // 2. DOM ELEMENTS
     const elements = {
+        // Existing
         welcome: document.getElementById('step-welcome'),
         wizardForm: document.getElementById('wizard-form'),
         dishSelect: document.getElementById('dish_name'),
@@ -19,6 +19,9 @@ document.addEventListener("DOMContentLoaded", () => {
         qtyInput: document.getElementById('qty'),
         qtyUnit: document.getElementById('qty_unit'),
         pelletSelect: document.getElementById('pellet_name'),
+        dishCards: document.getElementById('dish-cards'),
+        pelletCards: document.getElementById('pellet-cards'),
+        utensilCards: document.getElementById('utensil-cards'),
         utensilSelect: document.getElementById('utensil_name'),
         windSelect: document.getElementById('wind_label'),
         mPotInput: document.getElementById('m_pot'),
@@ -29,22 +32,50 @@ document.addEventListener("DOMContentLoaded", () => {
         simulatingStep: document.getElementById('step-simulating'),
         receiptStep: document.getElementById('step-receipt'),
         footer: document.getElementById('progress-footer'),
-        btnRestartTop: document.getElementById('btn-restart-top')
+        btnRestartTop: document.getElementById('btn-restart-top'),
+        // New
+        siteHeader: document.getElementById('site-header'),
+        heroSection: document.getElementById('hero-section'),
+        learnMore: document.getElementById('learn-more'),
+        calculatorSection: document.getElementById('calculator-section'),
+        calculatingBg: document.getElementById('calculating-bg'),
+        muteToggle: document.getElementById('mute-toggle'),
+        scrollImagePanel: document.getElementById('scroll-image-panel'),
+        modalLicense: document.getElementById('modal-license'),
+        modalAttributions: document.getElementById('modal-attributions')
     };
 
-    // Initialization
+    // 3. CATEGORY DISPLAY NAME HELPER
+    function displayCategory(cat) {
+        if (!cat) return 'Uncategorized';
+        const trimmed = cat.replace(/\s+/g, ' ').trim();
+        const map = {
+            'AL Pot': 'Aluminium Pot',
+            'Kadhai / Wok': 'Kadhai / Wok',
+            'Cooker': 'Pressure Cooker',
+            'Steel': 'Stainless Steel',
+            'Cast Iron': 'Cast Iron'
+        };
+        return map[trimmed] || trimmed;
+    }
+
+    // 4. INIT
     async function init() {
         try {
-            const response = await fetch("/api/init");
-            if (!response.ok) throw new Error("Load failed");
+            const response = await fetch('/api/init');
+            if (!response.ok) throw new Error('Load failed');
             state.appData = await response.json();
             populateSelects();
             attachListeners();
+            initScrollytelling();
+            initSectionNav();
+            initModals();
         } catch (err) {
             console.error(err);
         }
     }
 
+    // 5. POPULATE SELECTS
     function populateSelects() {
         // Dishes
         state.appData.dishes.forEach(d => {
@@ -54,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Pellets
         state.appData.pellets.forEach(p => {
-            const opt = new Option(p, p);
+            const opt = new Option(p.name, p.name);
             elements.pelletSelect.add(opt);
         });
 
@@ -72,11 +103,121 @@ document.addEventListener("DOMContentLoaded", () => {
 
         updateDishFields();
         updateUtensilFields();
+        renderSelectionCards();
     }
 
+    // Helper to generate a placeholder color and initials
+    function getAvatarProps(name) {
+        const initials = name.split(/[\s-]+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+        const hash = [...name].reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+        const hue = Math.abs(hash % 360);
+        return { initials, color: `hsl(${hue}, 40%, 60%)` };
+    }
+
+    // 6. RENDER SELECTION CARDS
+    function renderSelectionCards() {
+        renderCards(elements.dishCards, state.appData.dishes, elements.dishSelect, dish => {
+            const avatar = getAvatarProps(dish.name);
+            return `
+            <div class="flex items-center gap-3 w-full text-left">
+                <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
+                    <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
+                    <img src="/static/img/dishes/${dish.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
+                </div>
+                <div class="flex-grow min-w-0">
+                    <span class="selection-card__eyebrow block truncate">${escapeHtml(dish.category || 'Dish')}</span>
+                    <strong class="block truncate">${escapeHtml(dish.name)}</strong>
+                </div>
+            </div>`;
+        }, updateDishFields);
+
+        renderCards(elements.pelletCards, state.appData.pellets, elements.pelletSelect, pellet => {
+            const range = pellet.gcv_range_kcal || [];
+            const avatar = getAvatarProps(pellet.name);
+            return `
+            <div class="flex items-center gap-3 w-full text-left">
+                <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
+                    <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
+                    <img src="/static/img/pellets/${pellet.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
+                </div>
+                <div class="flex-grow min-w-0">
+                    <span class="selection-card__eyebrow block truncate">${escapeHtml(pellet.category)}</span>
+                    <strong class="block truncate">${escapeHtml(pellet.name)}</strong>
+                    <span class="selection-card__detail block truncate">${range[0]}–${range[1]} kcal/kg</span>
+                </div>
+            </div>`;
+        });
+
+        renderCards(elements.utensilCards, state.appData.utensils, elements.utensilSelect, utensil => {
+            const avatar = getAvatarProps(utensil.name);
+            return `
+            <div class="flex items-center gap-3 w-full text-left">
+                <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
+                    <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
+                    <img src="/static/img/utensils/${utensil.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
+                </div>
+                <div class="flex-grow min-w-0">
+                    <span class="selection-card__eyebrow block truncate">${utensil.is_pressure ? 'Pressure Cooker' : displayCategory(getUtensilCategory(utensil.name))}</span>
+                    <strong class="block truncate">${escapeHtml(utensil.name)}</strong>
+                    <span class="selection-card__detail block truncate">${utensil.mass_kg} kg empty mass</span>
+                </div>
+            </div>`;
+        }, updateUtensilFields);
+    }
+
+    function getUtensilCategory(name) {
+        if (name.startsWith('Kadhai')) return 'Kadhai / Wok';
+        if (name.startsWith('AL Pot')) return 'AL Pot';
+        if (name.startsWith('Cooker')) return 'Cooker';
+        if (name.startsWith('Iron') || name.startsWith('Cast')) return 'Cast Iron';
+        if (name.includes('Steel')) return 'Steel';
+        return 'Cooking Vessel';
+    }
+
+    // 7. renderCards
+    function renderCards(container, items, select, content, onChange) {
+        container.innerHTML = items.map(item => `
+            <button type="button" class="selection-card w-full" data-value="${escapeHtml(item.name)}" data-search="${escapeHtml(item.name).toLowerCase().replace(/[^a-z0-9]+/g, '')}" aria-pressed="false">${content(item)}</button>
+        `).join('');
+        const sync = () => {
+            container.querySelectorAll('.selection-card').forEach(card => {
+                const active = card.dataset.value === select.value;
+                card.classList.toggle('is-active', active);
+                card.setAttribute('aria-pressed', String(active));
+            });
+        };
+        container.addEventListener('click', event => {
+            const card = event.target.closest('.selection-card');
+            if (!card) return;
+            select.value = card.dataset.value;
+            if (onChange) onChange();
+            sync();
+        });
+        container.addEventListener('scroll', () => {
+            const cards = [...container.querySelectorAll('.selection-card')];
+            const centre = container.getBoundingClientRect().top + container.clientHeight / 2;
+            const nearest = cards.reduce((best, card) => Math.abs(card.getBoundingClientRect().top + card.offsetHeight / 2 - centre) < Math.abs(best.getBoundingClientRect().top + best.offsetHeight / 2 - centre) ? card : best, cards[0]);
+            if (nearest && nearest.dataset.value !== select.value) {
+                select.value = nearest.dataset.value;
+                if (onChange) onChange();
+                sync();
+            }
+        }, { passive: true });
+        sync();
+    }
+
+    // 8. escapeHtml
+    function escapeHtml(value) {
+        const node = document.createElement('span');
+        node.textContent = value ?? '';
+        return node.innerHTML;
+    }
+
+    // 9. attachListeners
     function attachListeners() {
         // Start Button
-        document.getElementById('btn-start').onclick = () => goToStep(1);
+        const btnStart = document.getElementById('btn-start');
+        if (btnStart) btnStart.onclick = () => goToStep(1);
 
         // Navigation Buttons
         document.querySelectorAll('.btn-next').forEach(btn => {
@@ -101,15 +242,67 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.utensilSelect.onchange = updateUtensilFields;
 
         // Review & Simulate
-        document.getElementById('btn-back-to-form').onclick = () => goToStep(state.steps.indexOf('lid'));
-        document.getElementById('btn-simulate').onclick = runSimulation;
+        const btnBackToForm = document.getElementById('btn-back-to-form');
+        if (btnBackToForm) btnBackToForm.onclick = () => goToStep(state.steps.indexOf('lid'));
+        
+        const btnSimulate = document.getElementById('btn-simulate');
+        if (btnSimulate) btnSimulate.onclick = runSimulation;
 
         // Restart
-        document.getElementById('btn-restart').onclick = restart;
-        elements.btnRestartTop.onclick = restart;
+        const btnRestart = document.getElementById('btn-restart');
+        if (btnRestart) btnRestart.onclick = restart;
+        if (elements.btnRestartTop) elements.btnRestartTop.onclick = restart;
+
+        // New events
+        const btnHeroCalculate = document.getElementById('btn-hero-calculate');
+        if (btnHeroCalculate) {
+            btnHeroCalculate.onclick = () => {
+                if (elements.calculatorSection) {
+                    elements.calculatorSection.scrollIntoView({ behavior: 'smooth' });
+                }
+                goToStep(0);
+            };
+        }
+
+        if (elements.muteToggle) {
+            elements.muteToggle.onclick = toggleMute;
+        }
+
+        // Search Handlers
+        const setupSearch = (inputId, containerId) => {
+            const input = document.getElementById(inputId);
+            const container = document.getElementById(containerId);
+            if (!input || !container) return;
+            
+            input.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                const cards = container.querySelectorAll('.selection-card');
+                let firstVisible = null;
+                
+                cards.forEach(card => {
+                    const searchData = card.dataset.search || '';
+                    if (searchData.includes(query)) {
+                        card.style.display = '';
+                        if (!firstVisible) firstVisible = card;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                
+                // Optional: auto-select first visible match if query is long enough
+                // if (query.length > 2 && firstVisible) {
+                //     firstVisible.click();
+                //     firstVisible.scrollIntoView({ block: 'nearest' });
+                // }
+            });
+        };
+        
+        setupSearch('search-dish', 'dish-cards');
+        setupSearch('search-pellet', 'pellet-cards');
+        setupSearch('search-utensil', 'utensil-cards');
     }
 
-    // Step Logic
+    // 10. goToStep
     function goToStep(index) {
         // Hide all steps
         document.querySelectorAll('.step-content').forEach(s => {
@@ -135,9 +328,10 @@ document.addEventListener("DOMContentLoaded", () => {
         updateProgress();
         
         // Show/Hide top restart button
-        elements.btnRestartTop.classList.toggle('hidden', index === 0);
+        if (elements.btnRestartTop) elements.btnRestartTop.classList.toggle('hidden', index === 0);
     }
 
+    // 11. nextStep
     function nextStep() {
         let nextIndex = state.currentStepIndex + 1;
         
@@ -156,11 +350,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // 12. prevStep
     function prevStep() {
         let prevIndex = state.currentStepIndex - 1;
         if (prevIndex >= 0) goToStep(prevIndex);
     }
 
+    // 13. validateSection
     function validateSection(section) {
         const inputs = section.querySelectorAll('input, select');
         for (let input of inputs) {
@@ -172,6 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return true;
     }
 
+    // 14. updateDishFields
     function updateDishFields() {
         const dish = state.appData.dishes.find(d => d.name === elements.dishSelect.value);
         if (dish) {
@@ -184,6 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // 15. updateUtensilFields
     function updateUtensilFields() {
         const utensil = state.appData.utensils.find(u => u.name === elements.utensilSelect.value);
         if (utensil) {
@@ -191,6 +389,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // 16. handleToReview
     async function handleToReview() {
         updateFormData();
         goToStep(state.steps.indexOf('review'));
@@ -209,11 +408,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // 17. updateFormData
     function updateFormData() {
         const formData = new FormData(elements.wizardForm);
         state.formData = Object.fromEntries(formData);
     }
 
+    // 18. renderReviewSummary
     function renderReviewSummary() {
         const items = [
             { label: 'Dish', value: state.formData.dish_name },
@@ -233,6 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `).join('');
     }
 
+    // 19. renderPreviewStats
     function renderPreviewStats(data) {
         const stats = [
             { label: 'Heat-up', value: `${data.t_heat_est_min.toFixed(1)}m` },
@@ -252,24 +454,34 @@ document.addEventListener("DOMContentLoaded", () => {
         state.formData.t_total_min = data.t_suggested_total_min;
     }
 
+    // 20. runSimulation
     async function runSimulation() {
+        // Set calculating background
+        if (elements.calculatingBg) {
+            elements.calculatingBg.style.backgroundImage = 'linear-gradient(135deg, #2D4F36 0%, #1A1A1A 100%)';
+        }
+        
         goToStep(state.steps.indexOf('simulating'));
+        playCookingSound();
         
         try {
-            const data = await requestJson("/api/simulate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+            const data = await requestJson('/api/simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(state.formData)
             });
             state.results = data.receipt;
+            stopCookingSound();
             renderReceipt();
             goToStep(state.steps.indexOf('receipt'));
         } catch (err) {
+            stopCookingSound();
             alert(err.message);
             goToStep(state.steps.indexOf('review'));
         }
     }
 
+    // 21. renderReceipt
     function renderReceipt() {
         const r = state.results;
         
@@ -305,25 +517,31 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('receipt-safety').innerHTML = safetyHtml;
     }
 
+    // 22. updateProgress
     function updateProgress() {
         const formSteps = state.steps.slice(1, state.steps.indexOf('review'));
         const currentFormIndex = formSteps.indexOf(state.steps[state.currentStepIndex]);
         
-        if (currentFormIndex !== -1) {
+        if (currentFormIndex !== -1 && elements.footer) {
             elements.footer.classList.remove('opacity-0', 'pointer-events-none');
             elements.footer.innerHTML = formSteps.map((_, i) => `
                 <div class="progress-dot ${i === currentFormIndex ? 'active' : ''}"></div>
             `).join('');
-        } else {
+        } else if (elements.footer) {
             elements.footer.classList.add('opacity-0', 'pointer-events-none');
         }
     }
 
+    // 23. restart
     function restart() {
         elements.wizardForm.reset();
         goToStep(0);
+        if (elements.calculatorSection) {
+            elements.calculatorSection.scrollIntoView({ behavior: 'smooth' });
+        }
     }
 
+    // 24. requestJson
     async function requestJson(url, options = {}) {
         const response = await fetch(url, options);
         const data = await response.json().catch(() => ({}));
@@ -333,5 +551,128 @@ document.addEventListener("DOMContentLoaded", () => {
         return data;
     }
 
+    // 25. SCROLLYTELLING
+    function initScrollytelling() {
+        const panels = document.querySelectorAll('.scroll-panel');
+        if (!panels.length || !elements.scrollImagePanel) return;
+        
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    // Remove active from all
+                    panels.forEach(p => p.classList.remove('is-active'));
+                    // Add active to current
+                    entry.target.classList.add('is-active');
+                    // Swap image
+                    const img = entry.target.dataset.image;
+                    if (img && elements.scrollImagePanel) {
+                        elements.scrollImagePanel.style.backgroundImage = `url('${img}')`;
+                    }
+                }
+            });
+        }, {
+            threshold: 0.5,
+            rootMargin: '-20% 0px -20% 0px'
+        });
+        
+        panels.forEach(panel => observer.observe(panel));
+    }
+
+    // 26. SECTION NAVIGATION
+    function initSectionNav() {
+        // Smooth scroll for nav links
+        document.querySelectorAll('.header-nav a[href^="#"]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = document.querySelector(link.getAttribute('href'));
+                if (target) target.scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+        
+        // Active section tracking with IntersectionObserver
+        const sections = [elements.heroSection, elements.learnMore, elements.calculatorSection].filter(Boolean);
+        const navLinks = document.querySelectorAll('.header-nav a[data-nav]');
+        
+        const sectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    navLinks.forEach(link => {
+                        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+                    });
+                }
+            });
+        }, { threshold: 0.3 });
+        
+        sections.forEach(s => sectionObserver.observe(s));
+        
+        // Header background on scroll
+        if (elements.siteHeader) {
+            window.addEventListener('scroll', () => {
+                elements.siteHeader.classList.toggle('scrolled', window.scrollY > 50);
+            }, { passive: true });
+        }
+    }
+
+    // 27. MODAL HANDLING
+    function initModals() {
+        const licenseLink = document.getElementById('link-license');
+        const attribLink = document.getElementById('link-attributions');
+        
+        if (licenseLink && elements.modalLicense) {
+            licenseLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                elements.modalLicense.classList.add('is-visible');
+            });
+        }
+        if (attribLink && elements.modalAttributions) {
+            attribLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                elements.modalAttributions.classList.add('is-visible');
+            });
+        }
+        
+        // Close modals
+        document.querySelectorAll('.modal-backdrop').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal || e.target.classList.contains('modal-close')) {
+                    modal.classList.remove('is-visible');
+                }
+            });
+        });
+    }
+
+    // 28. SOUND MANAGER
+    let cookingSoundInterval = null;
+
+    function playCookingSound() {
+        // Respect prefers-reduced-motion
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (state.soundMuted) return;
+        // Sound infrastructure ready — actual audio file to be added later
+        // When a real .mp3 file is placed at /static/audio/cooking-sizzle.mp3,
+        // uncomment the Audio playback code below:
+        // const audio = new Audio('/static/audio/cooking-sizzle.mp3');
+        // audio.loop = true;
+        // audio.volume = 0.3;
+        // audio.play().catch(() => {});
+        // state.cookingAudio = audio;
+    }
+
+    function stopCookingSound() {
+        // if (state.cookingAudio) { state.cookingAudio.pause(); state.cookingAudio = null; }
+    }
+
+    function toggleMute() {
+        state.soundMuted = !state.soundMuted;
+        if (elements.muteToggle) {
+            elements.muteToggle.textContent = state.soundMuted ? '🔇' : '🔊';
+        }
+        if (state.soundMuted) stopCookingSound();
+    }
+
+    // 29. CALL init()
     init();
 });

@@ -23,9 +23,9 @@ def _load_reference_module(module_name, filename):
         # UTENSIL_DB key on line 154, so this only makes that source parsable.
         broken = '        "Kadhai 6L,\n'
         fixed = '        "Kadhai 6L",\n'
-        if broken not in source:
-            raise RuntimeError("The expected hardware reference line was not found.")
-        source = source.replace(broken, fixed, 1)
+        if broken in source:
+            source = source.replace(broken, fixed, 1)
+        # If already fixed (broken line not found), no patch needed — skip silently
     module = types.ModuleType(module_name)
     module.__file__ = str(source_path)
     sys.modules[module_name] = module
