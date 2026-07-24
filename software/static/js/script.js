@@ -122,47 +122,146 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="flex items-center gap-3 w-full text-left">
                 <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
                     <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
-                    <img src="/static/img/dishes/${dish.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
+                    <img src="/static/img/dishes/${createSlug(dish.name)}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
                 </div>
                 <div class="flex-grow min-w-0">
                     <span class="selection-card__eyebrow block truncate">${escapeHtml(dish.category || 'Dish')}</span>
                     <strong class="block truncate">${escapeHtml(dish.name)}</strong>
                 </div>
             </div>`;
-        }, updateDishFields);
+        }, updateDishFields, 'dishes', '.selection-collage--food');
 
         renderCards(elements.pelletCards, state.appData.pellets, elements.pelletSelect, pellet => {
             const range = pellet.gcv_range_kcal || [];
-            const avatar = getAvatarProps(pellet.name);
             return `
             <div class="flex items-center gap-3 w-full text-left">
-                <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
-                    <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
-                    <img src="/static/img/pellets/${pellet.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
-                </div>
                 <div class="flex-grow min-w-0">
                     <span class="selection-card__eyebrow block truncate">${escapeHtml(pellet.category)}</span>
                     <strong class="block truncate">${escapeHtml(pellet.name)}</strong>
                     <span class="selection-card__detail block truncate">${range[0]}–${range[1]} kcal/kg</span>
                 </div>
             </div>`;
+        }, null, null, null);
+
+        // Custom Drill-Down logic for Utensils
+        let currentUtensilCategory = null;
+        
+        function renderUtensilView() {
+            const utensilCategories = {};
+            state.appData.utensils.forEach(utensil => {
+                const cat = getUtensilVisualCategory(utensil.name);
+                if (!utensilCategories[cat]) utensilCategories[cat] = [];
+                utensilCategories[cat].push(utensil);
+            });
+
+            if (!currentUtensilCategory) {
+                // Render Categories
+                elements.utensilCards.innerHTML = Object.keys(utensilCategories).map(cat => {
+                    const avatar = getAvatarProps(cat);
+                    const slug = createSlug(cat);
+                    const count = utensilCategories[cat].length;
+                    return `
+                    <button type="button" class="selection-card w-full" data-action="drill" data-category="${escapeHtml(cat)}" data-search="${escapeHtml(cat).toLowerCase().replace(/[^a-z0-9]+/g, '')}" aria-pressed="false">
+                        <div class="flex items-center gap-3 w-full text-left">
+                            <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
+                                <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
+                                <img src="/static/img/utensils/${slug}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
+                            </div>
+                            <div class="flex-grow min-w-0">
+                                <strong class="block truncate">${escapeHtml(cat)}</strong>
+                                <span class="selection-card__detail block truncate">${count} sizes available</span>
+                            </div>
+                            <div class="shrink-0 opacity-50">➔</div>
+                        </div>
+                    </button>`;
+                }).join('');
+            } else {
+                // Render Sizes for currentUtensilCategory
+                const items = utensilCategories[currentUtensilCategory];
+                const slug = createSlug(currentUtensilCategory);
+                
+                const backBtn = `
+                    <button type="button" class="btn-ghost flex items-center gap-2 mb-4 w-max p-2 -ml-2" data-action="back">
+                        <span aria-hidden="true">←</span> Back to Categories
+                    </button>
+                `;
+                
+                const cards = items.map(u => {
+                    let sizeLabel = u.name.replace(currentUtensilCategory, '').trim();
+                    if (currentUtensilCategory === 'Kadhai / Wok') sizeLabel = u.name.replace('Kadhai', '').trim();
+                    if (currentUtensilCategory === 'Cast Iron Tawa') sizeLabel = 'Standard';
+                    if (currentUtensilCategory === 'Cast Iron BIG PAN') sizeLabel = 'Large';
+                    if (sizeLabel === '') sizeLabel = 'Standard';
+                    
+                    return `
+                    <button type="button" class="selection-card w-full" data-action="select" data-value="${escapeHtml(u.name)}" data-search="${escapeHtml(u.name).toLowerCase().replace(/[^a-z0-9]+/g, '')}" aria-pressed="false">
+                        <div class="flex items-center gap-3 w-full text-left">
+                            <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative flex items-center justify-center font-bold text-sm bg-black/[0.05]">
+                                ${escapeHtml(sizeLabel)}
+                            </div>
+                            <div class="flex-grow min-w-0">
+                                <span class="selection-card__eyebrow block truncate">${escapeHtml(currentUtensilCategory)}</span>
+                                <strong class="block truncate">${escapeHtml(u.name)}</strong>
+                            </div>
+                        </div>
+                    </button>`;
+                }).join('');
+                
+                elements.utensilCards.innerHTML = backBtn + cards;
+            }
+            
+            // Update collage immediately when category is selected
+            if (currentUtensilCategory) {
+                const collage = document.querySelector('.selection-collage--utensils');
+                if (collage) {
+                    const slug = createSlug(currentUtensilCategory);
+                    collage.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url('/static/img/utensils/${slug}.jpg')`;
+                }
+                
+                elements.utensilCards.querySelectorAll('[data-action="select"]').forEach(card => {
+                    const active = card.dataset.value === elements.utensilSelect.value;
+                    card.classList.toggle('is-active', active);
+                    card.setAttribute('aria-pressed', String(active));
+                });
+            }
+            
+            // Re-trigger search on the new view if a search term exists
+            const searchInput = document.getElementById('search-utensil');
+            if (searchInput && searchInput.value) {
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        elements.utensilCards.addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            
+            if (btn.dataset.action === 'drill') {
+                currentUtensilCategory = btn.dataset.category;
+                renderUtensilView();
+            } else if (btn.dataset.action === 'back') {
+                currentUtensilCategory = null;
+                renderUtensilView();
+            } else if (btn.dataset.action === 'select') {
+                elements.utensilSelect.value = btn.dataset.value;
+                if (updateUtensilFields) updateUtensilFields();
+                renderUtensilView();
+            }
         });
 
-        renderCards(elements.utensilCards, state.appData.utensils, elements.utensilSelect, utensil => {
-            const avatar = getAvatarProps(utensil.name);
-            return `
-            <div class="flex items-center gap-3 w-full text-left">
-                <div class="w-12 h-12 rounded-lg bg-border overflow-hidden shrink-0 relative" style="background-color: ${avatar.color}">
-                    <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">${avatar.initials}</span>
-                    <img src="/static/img/utensils/${utensil.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.jpg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" onerror="this.style.display='none'">
-                </div>
-                <div class="flex-grow min-w-0">
-                    <span class="selection-card__eyebrow block truncate">${utensil.is_pressure ? 'Pressure Cooker' : displayCategory(getUtensilCategory(utensil.name))}</span>
-                    <strong class="block truncate">${escapeHtml(utensil.name)}</strong>
-                    <span class="selection-card__detail block truncate">${utensil.mass_kg} kg empty mass</span>
-                </div>
-            </div>`;
-        }, updateUtensilFields);
+        renderUtensilView();
+    }
+
+    function getUtensilVisualCategory(name) {
+        if (name.includes('AL Pot')) return 'AL Pot';
+        if (name.includes('Cooker')) return 'Cooker';
+        if (name.startsWith('Kadhai')) return 'Kadhai / Wok';
+        if (name.includes('Iron Tawa')) return 'Cast Iron Tawa';
+        if (name.includes('Iron BIG PAN')) return 'Cast Iron BIG PAN';
+        if (name.includes('Iron Kadhai')) return 'Cast Iron Kadhai';
+        if (name.includes('Steel Pot')) return 'Steel Pot';
+        if (name.includes('Steel Kadhai')) return 'Steel Kadhai';
+        return 'Other';
     }
 
     function getUtensilCategory(name) {
@@ -174,8 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'Cooking Vessel';
     }
 
+    // Helper to generate clean slugs for images
+    function createSlug(text) {
+        return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
     // 7. renderCards
-    function renderCards(container, items, select, content, onChange) {
+    function renderCards(container, items, select, content, onChange, imgFolder, collageSelector) {
         container.innerHTML = items.map(item => `
             <button type="button" class="selection-card w-full" data-value="${escapeHtml(item.name)}" data-search="${escapeHtml(item.name).toLowerCase().replace(/[^a-z0-9]+/g, '')}" aria-pressed="false">${content(item)}</button>
         `).join('');
@@ -185,6 +289,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.classList.toggle('is-active', active);
                 card.setAttribute('aria-pressed', String(active));
             });
+            if (imgFolder && collageSelector) {
+                const collage = document.querySelector(collageSelector);
+                if (collage && select.value) {
+                    const slug = createSlug(select.value);
+                    // Add gradient overlay + image, but also keep a fallback background color
+                    collage.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url('/static/img/${imgFolder}/${slug}.jpg')`;
+                }
+            }
         };
         container.addEventListener('click', event => {
             const card = event.target.closest('.selection-card');

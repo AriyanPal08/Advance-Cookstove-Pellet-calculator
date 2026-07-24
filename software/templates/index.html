@@ -26,7 +26,7 @@
 </header>
 
 <section id="hero-section" class="hero-section">
-  <!-- ⚠️ BADGE TYPO: Physical unit badge reads 'Deliciouly Traditional... Impressively EcoFreindly' (misspelled). Owner decision pending: crop/reshoot/leave-as-is. -->
+  <!--  BADGE TYPO: Physical unit badge reads 'Deliciouly Traditional... Impressively EcoFreindly' (misspelled). Owner decision pending: crop/reshoot/leave-as-is. -->
   <div class="hero-bg" style="background-image: url('/static/img/hero/tadka-chulha-full-unit.jpg')"></div>
   <div class="hero-overlay"></div>
   <div class="hero-content">
@@ -69,20 +69,20 @@
     <div class="scrolly-text-panels">
       <!-- Panel 1 -->
       <div class="scroll-panel is-active" data-panel="0" data-image="/static/img/hero/tadka-chulha-top-down.jpg">
-        <h3>🔥 The Problem</h3>
+        <h3> The Problem</h3>
         <p>Biomass cookstove users currently guess pellet load and cook time, leading to wasted fuel, under-cooked meals, or dangerous overheating. The Tadka Chulha simulator replaces guesswork with physics.</p>
         <p>This tool runs a <strong>1 Hz transient thermal simulation</strong> — a discretized numerical model that steps through every second of the cooking process, tracking heat flow in and out of the system.</p>
       </div>
       <!-- Panel 2 -->
       <div class="scroll-panel" data-panel="1" data-image="/static/img/hero/tadka-chulha-full-unit.jpg">
-        <h3>⚡ The Physics Model</h3>
+        <h3> The Physics Model</h3>
         <p>Every second, the simulator computes: pellet combustion heat input, convective and radiative heat loss (Stefan–Boltzmann law), sensible heating of food, water, and vessel, and latent heat of water evaporation.</p>
         <p>This is <strong>not a static formula</strong> — it's a full transient loop that tracks temperature rise, boiling onset, evaporation rate, and dry-boil conditions second by second.</p>
         <div class="citation">Model architecture: 1 Hz loop with Euler-method integration. Vessel geometry from measured Indian cookware dimensions.</div>
       </div>
       <!-- Panel 3 -->
       <div class="scroll-panel" data-panel="2" data-image="/static/img/collages/pellet-collage.jpg">
-        <h3>📊 Every Input, Explained</h3>
+        <h3> Every Input, Explained</h3>
         <p><strong>Dish</strong> — Food mass, added water, specific heat capacity from Choi & Okos (1986), ICMR-NIN (2017) Indian Food Composition Tables, CSIR-CFTRI (2020), and Singh (2007) hydration kinetics.</p>
         <p><strong>Pellet type</strong> — Gross Calorific Value (GCV) range and combustion kinetics from Mukunda et al. (2010), IISc Bangalore gasifier data.</p>
         <p><strong>Utensil</strong> — Mass, material specific heat, emissivity from NIST WebBook, Incropera et al. (2007), MacCarty et al. (2010), Energy Sustain. Dev.</p>
@@ -91,7 +91,7 @@
       </div>
       <!-- Panel 4 -->
       <div class="scroll-panel" data-panel="3" data-image="/static/img/hero/tadka-chulha-top-down.jpg">
-        <h3>🔬 Lid & Pressure Cooker</h3>
+        <h3> Lid & Pressure Cooker</h3>
         <p><strong>Lid state</strong> — Open, covered, or sealed pressure cooker each dramatically change evaporation rate and heat loss.</p>
         <p><strong>Pressure cooker correction</strong> — An Arrhenius-kinetics-derived, empirically-calibrated correction for post-whistle cooking speed. This is currently validated against a limited number of physical tests and is still being refined.</p>
         <p><em>Note: The pressure cooker model is under active calibration. Do not treat these estimates as fully validated — they are best-effort approximations pending further field testing.</em></p>
@@ -99,7 +99,7 @@
       </div>
       <!-- Panel 5 -->
       <div class="scroll-panel" data-panel="4" data-image="/static/img/hero/tadka-chulha-full-unit.jpg">
-        <h3>📋 The Output</h3>
+        <h3> The Output</h3>
         <p>The simulation produces: heat-up time to boiling, kinetic/cooking time for the recipe, a safety buffer scaled to thermal mass and wind conditions, and the total recommended cook time.</p>
         <p>From the total time and combustion rate, the tool computes the <strong>exact pellet mass</strong> needed, with a procurement margin that varies by cooking mode (open pot vs. covered vs. pressure cooker).</p>
         <p><strong>Validation status:</strong> Lab-tested against a growing set of dishes. Field validation is in progress — accuracy numbers will be published as testing expands.</p>
@@ -140,7 +140,7 @@
           </div>
           <div class="search-container mb-4 relative">
             <input type="search" id="search-dish" class="input-search" placeholder="Search dishes (e.g., Aloo Gobi)..." aria-label="Search dishes">
-            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50"></span>
           </div>
           <div class="selection-explorer" data-explorer="dish">
             <div class="selection-collage selection-collage--food" aria-hidden="true"></div>
@@ -299,7 +299,7 @@
           <h2 class="text-2xl font-bold">Running Simulation</h2>
           <p class="text-muted mt-2">Analyzing thermodynamic demand...</p>
           <button type="button" class="mute-toggle" id="mute-toggle" title="Toggle sound" aria-label="Toggle cooking sound">
-            🔊
+            
           </button>
         </div>
       </section>
@@ -343,13 +343,13 @@
     </div>
     <div class="footer-col">
       <h4>Credits</h4>
-      <!-- ⚠️ PLACEHOLDER: Confirm exact institutional credit line before publishing -->
-      <p>Department of Energy Studies, IIT Delhi.</p>
+      <!-- PLACEHOLDER: Confirm exact institutional credit line before publishing -->
+      <p>Department of Energy Science and Engineering, IIT Delhi.</p>
       <p>Physics model citations: Choi & Okos (1986), Mukunda et al. (2010), Incropera et al. (2007).</p>
     </div>
     <div class="footer-col">
       <h4>Legal</h4>
-      <!-- ⚠️ PLACEHOLDER: Confirm actual code license before publishing -->
+      <!-- PLACEHOLDER: Confirm actual code license before publishing -->
       <p>© 2025 Tadka Chulha Project.</p>
       <p>Dish, pellet, and utensil photography sourced under Unsplash/Pexels licenses.</p>
       <p><a href="#" id="link-license">License</a> · <a href="#" id="link-attributions">Attributions</a></p>
@@ -365,7 +365,7 @@
   <div class="modal-content">
     <button class="modal-close" aria-label="Close">✕</button>
     <h2 class="step-title" style="font-size:1.5rem">License</h2>
-    <!-- ⚠️ PLACEHOLDER: Confirm actual license type -->
+    <!--  PLACEHOLDER: Confirm actual license type -->
     <p>Simulation engine and hardware firmware license terms to be confirmed by the project owner.</p>
   </div>
 </div>
@@ -373,10 +373,9 @@
 <!-- Attributions Modal -->
 <div class="modal-backdrop" id="modal-attributions">
   <div class="modal-content">
-    <button class="modal-close" aria-label="Close">✕</button>
+    <button class="modal-close" aria-label="Close">✖</button>
     <h2 class="step-title" style="font-size:1.5rem">Attributions</h2>
-    <p>Photography sourced from Unsplash and Pexels under their respective free licenses. Full attribution list available in static/img/CREDITS.md.</p>
-    <p>Sound effects sourced from royalty-free libraries. Attribution in static/audio/CREDITS.md.</p>
+    <p>Photography and images are provided under fair use or open-source licenses. Full attribution list available in <a href="/credit.md" target="_blank" class="text-accent underline">credit.md</a>.</p>
   </div>
 </div>
 
