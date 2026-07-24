@@ -164,6 +164,13 @@ body {
 .overflow-y-auto { overflow-y: auto; }
 
 .opacity-0 { opacity: 0; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.bg-cover { background-size: cover; }
+.bg-center { background-position: center; }
+.z-0 { z-index: 0; }
+.z-10 { z-index: 10; }
+.overflow-hidden { overflow: hidden; }
+.transition-all { transition: all 0.7s ease; }
 .opacity-30 { opacity: 0.3; }
 .opacity-40 { opacity: 0.4; }
 
@@ -456,10 +463,13 @@ body {
 .calculator-section {
   padding-top: 80px;
   min-height: 100vh;
+  position: relative;
+  overflow: hidden;
 }
 
 .wizard-wrapper {
   position: relative;
+  z-index: 10;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1077,4 +1087,200 @@ body {
 
 @media (min-width: 1280px) {
   .xl\:max-w-7xl { max-width: 80rem; }
+}
+
+/* ============================================
+   Dynamic Background & Dark Mode for Calculator
+   ============================================ */
+
+/* The blurred, darkened dish photo behind everything */
+#calculator-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: brightness(0.22) blur(14px) saturate(1.3);
+  transform: scale(1.08); /* prevents white blur-bleed at edges */
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+#calculator-bg.active {
+  opacity: 1;
+}
+
+/* When dark-mode-active, override CSS variables scoped to the calculator */
+.calculator-section.dark-mode-active {
+  color: #F3F4F6;
+}
+
+.calculator-section.dark-mode-active .step-title,
+.calculator-section.dark-mode-active .step-subtitle,
+.calculator-section.dark-mode-active h1,
+.calculator-section.dark-mode-active h2,
+.calculator-section.dark-mode-active h3,
+.calculator-section.dark-mode-active h4,
+.calculator-section.dark-mode-active p,
+.calculator-section.dark-mode-active span,
+.calculator-section.dark-mode-active strong,
+.calculator-section.dark-mode-active label,
+.calculator-section.dark-mode-active .stat-label,
+.calculator-section.dark-mode-active .stat-value,
+.calculator-section.dark-mode-active .selection-card__eyebrow,
+.calculator-section.dark-mode-active .selection-card__detail {
+  color: #E5E7EB;
+}
+
+.calculator-section.dark-mode-active .wizard-wrapper {
+  position: relative;
+  z-index: 10;
+}
+
+.calculator-section.dark-mode-active .step-content {
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 2.5rem;
+}
+
+.calculator-section.dark-mode-active .selection-card {
+  background: rgba(30, 30, 30, 0.65);
+  border-color: rgba(255,255,255,0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #E5E7EB;
+}
+.calculator-section.dark-mode-active .selection-card:hover {
+  background: rgba(45, 45, 45, 0.75);
+  border-color: rgba(255,255,255,0.25);
+}
+.calculator-section.dark-mode-active .selection-card.is-active {
+  background: rgba(45, 79, 54, 0.55);
+  border-color: rgba(100, 200, 120, 0.5);
+}
+
+.calculator-section.dark-mode-active .btn-primary {
+  box-shadow: 0 4px 20px rgba(45, 79, 54, 0.4);
+}
+
+.calculator-section.dark-mode-active .btn-ghost {
+  color: #9CA3AF;
+}
+.calculator-section.dark-mode-active .btn-ghost:hover {
+  color: #F3F4F6;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.calculator-section.dark-mode-active .btn-outline {
+  border-color: rgba(255,255,255,0.2);
+  color: #E5E7EB;
+  backdrop-filter: blur(8px);
+}
+.calculator-section.dark-mode-active .btn-outline:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.calculator-section.dark-mode-active input,
+.calculator-section.dark-mode-active select,
+.calculator-section.dark-mode-active textarea {
+  background: rgba(30, 30, 30, 0.6);
+  color: #F3F4F6;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.calculator-section.dark-mode-active .selection-collage {
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.calculator-section.dark-mode-active .selection-list {
+  background: rgba(15, 15, 15, 0.4);
+  border-color: rgba(255,255,255,0.08);
+}
+
+/* Standalone pellet list (no explorer wrapper) */
+#pellet-cards:not(.selection-explorer .selection-list) {
+  max-height: 60vh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.calculator-section.dark-mode-active #pellet-cards:not(.selection-explorer .selection-list) {
+  background: rgba(15, 15, 15, 0.4);
+  border-color: rgba(255,255,255,0.08);
+}
+
+/* Receipt cards in dark mode */
+.calculator-section.dark-mode-active .receipt-card {
+  background: rgba(25, 25, 25, 0.6);
+  border-color: rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #E5E7EB;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+.calculator-section.dark-mode-active .receipt-card h3,
+.calculator-section.dark-mode-active .receipt-card .stat-label {
+  color: #9CA3AF;
+}
+
+.calculator-section.dark-mode-active #receipt-pellets {
+  color: #FFFFFF;
+}
+
+.calculator-section.dark-mode-active .text-accent {
+  color: #6EE7A0 !important;
+}
+
+/* Review preview box in dark mode */
+.calculator-section.dark-mode-active .review-preview-box {
+  background: rgba(25, 25, 25, 0.6);
+  border-color: rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Calculating/simulating state in dark mode */
+.calculator-section.dark-mode-active .calculating-content h2,
+.calculator-section.dark-mode-active .calculating-content p {
+  color: #F3F4F6;
+}
+
+/* Collage banners in dark mode */
+.calculator-section.dark-mode-active .collage-banner {
+  border-color: rgba(255,255,255,0.08);
+}
+
+/* Search input in dark mode */
+.calculator-section.dark-mode-active .input-search {
+  background: rgba(30, 30, 30, 0.6);
+  color: #F3F4F6;
+  border-color: rgba(255,255,255,0.15);
+}
+.calculator-section.dark-mode-active .input-search::placeholder {
+  color: #6B7280;
+}
+
+/* Safety notice in dark mode */
+.calculator-section.dark-mode-active #receipt-safety {
+  color: #D1D5DB;
+}
+
+/* ============================================
+   Hide Google Translate Default UI
+   ============================================ */
+#google_translate_element, .skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important;
 }

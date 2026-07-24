@@ -9,8 +9,26 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css">
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi', autoDisplay: false}, 'google_translate_element');
+    }
+    function toggleLanguage() {
+      const select = document.querySelector('.goog-te-combo');
+      if (select) {
+        const btn = document.getElementById('lang-toggle');
+        const currentLang = select.value;
+        const newLang = currentLang === 'hi' ? 'en' : 'hi';
+        select.value = newLang;
+        select.dispatchEvent(new Event('change'));
+        btn.innerText = newLang === 'hi' ? 'EN' : 'HI';
+      }
+    }
+  </script>
+  <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </head>
 <body>
+<div id="google_translate_element" style="display:none;"></div>
 
 <header class="site-header" id="site-header">
   <div class="header-brand">
@@ -21,6 +39,7 @@
     <a href="#hero-section" data-nav="hero">Home</a>
     <a href="#learn-more" data-nav="learn">Learn More</a>
     <a href="#calculator-section" data-nav="calculator">Calculator</a>
+    <button id="lang-toggle" class="btn-ghost" onclick="toggleLanguage()">HI</button>
     <button id="btn-restart-top" class="btn-ghost hidden">Restart</button>
   </nav>
 </header>
@@ -109,8 +128,9 @@
   </div>
 </section>
 
-<section id="calculator-section" class="calculator-section">
-  <div id="app" class="wizard-wrapper">
+<section id="calculator-section" class="calculator-section relative">
+  <div id="calculator-bg" class="absolute inset-0 bg-cover bg-center transition-all duration-700 opacity-0 z-0"></div>
+  <div id="app" class="wizard-wrapper relative z-10">
     <main class="flex-grow flex flex-col justify-center">
       
       <!-- Step 0: Welcome -->
@@ -207,10 +227,7 @@
             <input type="search" id="search-pellet" class="input-search" placeholder="Search pellets..." aria-label="Search pellets">
             <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
           </div>
-          <div class="selection-explorer" data-explorer="pellet">
-            <div class="selection-collage selection-collage--pellets" aria-hidden="true"></div>
-            <div class="selection-list" id="pellet-cards" aria-label="Pellet options"></div>
-          </div>
+          <div class="selection-list" id="pellet-cards" aria-label="Pellet options"></div>
           <select id="pellet_name" name="pellet_name" class="select-large sr-only" required></select>
           <div class="mt-12 flex justify-between items-center">
             <button type="button" class="btn-ghost btn-prev">Back</button>
@@ -343,13 +360,18 @@
     </div>
     <div class="footer-col">
       <h4>Credits</h4>
-      <!-- PLACEHOLDER: Confirm exact institutional credit line before publishing -->
       <p>Department of Energy Science and Engineering, IIT Delhi.</p>
       <p>Physics model citations: Choi & Okos (1986), Mukunda et al. (2010), Incropera et al. (2007).</p>
     </div>
     <div class="footer-col">
+      <h4>Developer</h4>
+      <p>Ariyan Pal</p>
+      <p>Email: <a href="mailto:ariyanpal0@gmail.com">ariyanpal0@gmail.com</a></p>
+      <p>LinkedIn: <a href="http://linkedin.com/in/ariyan-pal-590b0b321/" target="_blank">View Profile</a></p>
+      <p>GitHub: <a href="https://github.com/AriyanPal08" target="_blank">AriyanPal08</a></p>
+    </div>
+    <div class="footer-col">
       <h4>Legal</h4>
-      <!-- PLACEHOLDER: Confirm actual code license before publishing -->
       <p>© 2025 Tadka Chulha Project.</p>
       <p>Dish, pellet, and utensil photography sourced under Unsplash/Pexels licenses.</p>
       <p><a href="#" id="link-license">License</a> · <a href="#" id="link-attributions">Attributions</a></p>

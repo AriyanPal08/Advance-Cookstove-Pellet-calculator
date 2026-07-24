@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
         formData: {},
         appData: {},
         results: null,
-        soundMuted: false
+        soundMuted: false,
+        userHasSelectedDish: false
     };
 
     // 2. DOM ELEMENTS
@@ -302,6 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = event.target.closest('.selection-card');
             if (!card) return;
             select.value = card.dataset.value;
+            // Mark that the user has explicitly selected a dish
+            if (container === elements.dishCards) {
+                state.userHasSelectedDish = true;
+            }
             if (onChange) onChange();
             sync();
         });
@@ -311,6 +316,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const nearest = cards.reduce((best, card) => Math.abs(card.getBoundingClientRect().top + card.offsetHeight / 2 - centre) < Math.abs(best.getBoundingClientRect().top + best.offsetHeight / 2 - centre) ? card : best, cards[0]);
             if (nearest && nearest.dataset.value !== select.value) {
                 select.value = nearest.dataset.value;
+                if (container === elements.dishCards) {
+                    state.userHasSelectedDish = true;
+                }
                 if (onChange) onChange();
                 sync();
             }
@@ -490,6 +498,17 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.qtyInput.value = dish.qty_default;
             elements.qtyInput.step = dish.qty_is_float ? "0.1" : "1";
             elements.qtyUnit.textContent = dish.qty_unit || "";
+            
+            // Dynamic Background — only after user explicitly picks a dish
+            if (state.userHasSelectedDish) {
+                const bg = document.getElementById('calculator-bg');
+                if (bg) {
+                    const slug = createSlug(dish.name);
+                    bg.style.backgroundImage = `url('/static/img/dishes/${slug}.jpg')`;
+                    bg.classList.add('active');
+                    document.getElementById('calculator-section').classList.add('dark-mode-active');
+                }
+            }
         }
     }
 
@@ -647,6 +666,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 23. restart
     function restart() {
         elements.wizardForm.reset();
+        
+        // Reset dark mode background
+        state.userHasSelectedDish = false;
+        const bg = document.getElementById('calculator-bg');
+        if (bg) {
+            bg.classList.remove('active');
+            bg.style.backgroundImage = '';
+        }
+        document.getElementById('calculator-section').classList.remove('dark-mode-active');
+        
         goToStep(0);
         if (elements.calculatorSection) {
             elements.calculatorSection.scrollIntoView({ behavior: 'smooth' });
