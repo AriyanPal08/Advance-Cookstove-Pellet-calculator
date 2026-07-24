@@ -33,4 +33,4 @@ WORKDIR /app/software
 EXPOSE 8080
 
 # Command to run Gunicorn instead of Flask's development server
-CMD ["gunicorn", "--workers=4", "--bind=0.0.0.0:8080", "app:app"]
+CMD ["gunicorn", "--workers=2", "--bind=0.0.0.0:8080", "app:app"]
