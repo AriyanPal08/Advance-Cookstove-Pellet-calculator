@@ -310,18 +310,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (onChange) onChange();
             sync();
         });
+        let scrollTimeout = null;
         container.addEventListener('scroll', () => {
-            const cards = [...container.querySelectorAll('.selection-card')];
-            const centre = container.getBoundingClientRect().top + container.clientHeight / 2;
-            const nearest = cards.reduce((best, card) => Math.abs(card.getBoundingClientRect().top + card.offsetHeight / 2 - centre) < Math.abs(best.getBoundingClientRect().top + best.offsetHeight / 2 - centre) ? card : best, cards[0]);
-            if (nearest && nearest.dataset.value !== select.value) {
-                select.value = nearest.dataset.value;
-                if (container === elements.dishCards) {
-                    state.userHasSelectedDish = true;
+            if (scrollTimeout) return;
+            scrollTimeout = setTimeout(() => {
+                scrollTimeout = null;
+                const cards = [...container.querySelectorAll('.selection-card')];
+                if (cards.length === 0) return;
+                const centre = container.getBoundingClientRect().top + container.clientHeight / 2;
+                const nearest = cards.reduce((best, card) => Math.abs(card.getBoundingClientRect().top + card.offsetHeight / 2 - centre) < Math.abs(best.getBoundingClientRect().top + best.offsetHeight / 2 - centre) ? card : best, cards[0]);
+                if (nearest && nearest.dataset.value !== select.value) {
+                    select.value = nearest.dataset.value;
+                    if (container === elements.dishCards) {
+                        state.userHasSelectedDish = true;
+                    }
+                    if (onChange) onChange();
+                    sync();
                 }
-                if (onChange) onChange();
-                sync();
-            }
+            }, 100); // Throttle scroll to max 10 fps to prevent mobile lag
         }, { passive: true });
         sync();
     }

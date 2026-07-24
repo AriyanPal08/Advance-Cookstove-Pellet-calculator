@@ -486,12 +486,13 @@ body {
   flex-direction: column;
   justify-content: center;
   transition: opacity 400ms cubic-bezier(0.16,1,0.3,1), transform 400ms cubic-bezier(0.16,1,0.3,1);
+  will-change: opacity, transform;
 }
 
 .step-content:not(.active) {
   position: absolute;
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(20px) translateZ(0);
   pointer-events: none;
   visibility: hidden;
 }
@@ -499,7 +500,7 @@ body {
 .step-content.active {
   position: relative;
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) translateZ(0);
   pointer-events: auto;
   visibility: visible;
 }
@@ -602,6 +603,8 @@ body {
   background-size: cover;
   background-position: center;
   position: relative;
+  will-change: background-image;
+  transform: translateZ(0);
 }
 
 .selection-collage--pellets { background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url('/static/img/pellets/pellet-collage.jpg'); }
@@ -634,6 +637,8 @@ body {
   flex-direction: column;
   gap: 0.25rem;
   margin-bottom: 0.5rem;
+  will-change: transform, background-color, border-color;
+  transform: translateZ(0);
 }
 
 .selection-card:hover {
@@ -644,7 +649,7 @@ body {
 .selection-card.is-active {
   background-color: rgba(45, 79, 54, 0.08);
   border-color: var(--color-accent);
-  transform: translateX(-3px);
+  transform: translateX(-3px) translateZ(0);
 }
 
 .selection-card__eyebrow {
