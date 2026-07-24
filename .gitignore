@@ -1,4 +1,4 @@
-﻿# Environments
+# Environments
 .env
 .venv
 env/
@@ -57,3 +57,17 @@ desktop.ini
 
 # Node
 node_modules/
+
+# Database
+*.sqlite3
+db.sqlite3
+
+# Logs
+*.log
+*.log.*
+
+# Docker
+docker-compose.override.yml
+
+# Kombai AI Output
+.kombai/

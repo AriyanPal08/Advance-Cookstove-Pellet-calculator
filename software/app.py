@@ -8,7 +8,32 @@ from hardware_adapter import (
     compute_safety_buffer_s, zero_state, run_1hz_loop, post_process,
 )
 
+import os
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
+
 app = Flask(__name__)
+
+# Set up Security Headers (Talisman)
+csp = {
+    'default-src': ["'self'"],
+    'script-src': ["'self'", "'unsafe-inline'"],
+    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    'font-src': ["'self'", "https://fonts.gstatic.com"],
+    'img-src': ["'self'", "data:", "blob:"],
+}
+# Automatically force HTTPS if FLASK_ENV is set to production
+is_prod = os.environ.get("FLASK_ENV") == "production"
+Talisman(app, content_security_policy=csp, force_https=is_prod)
+
+# Set up Rate Limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "200 per hour"],
+    storage_uri="memory://"
+)
 
 @app.route("/")
 def index():
@@ -189,6 +214,7 @@ def _build_inputs(data):
     return inp
 
 @app.route("/api/preview", methods=["POST"])
+@limiter.limit("20 per minute")  # Stricter limit for calculation endpoints
 def preview():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -207,6 +233,7 @@ def preview():
         return jsonify({"success": False, "error": f"Check the selected inputs: {e}"}), 400
 
 @app.route("/api/simulate", methods=["POST"])
+@limiter.limit("10 per minute")  # Heavy calculation, strictly rate limit
 def simulate():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
