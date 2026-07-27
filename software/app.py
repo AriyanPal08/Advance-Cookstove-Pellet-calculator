@@ -9,6 +9,8 @@ from hardware_adapter import (
 )
 
 import os
+import urllib.request
+import json as json_lib
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
@@ -22,10 +24,11 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # Set up Security Headers (Talisman)
 csp = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'"],
-    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    'script-src': ["'self'", "'unsafe-inline'", "https://translate.google.com", "https://translate.googleapis.com"],
+    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://translate.googleapis.com"],
     'font-src': ["'self'", "https://fonts.gstatic.com"],
-    'img-src': ["'self'", "data:", "blob:"],
+    'img-src': ["'self'", "data:", "blob:", "https://www.google.com", "https://www.gstatic.com"],
+    'connect-src': ["'self'", "https://api.open-meteo.com", "https://get.geojs.io", "https://ipapi.co", "https://api.bigdatacloud.net", "https://translate.googleapis.com"],
 }
 # Automatically force HTTPS if FLASK_ENV is set to production
 is_prod = os.environ.get("FLASK_ENV") == "production"
@@ -305,6 +308,76 @@ def simulate():
         return jsonify({"success": True, "receipt": receipt})
     except (KeyError, TypeError, ValueError) as e:
         return jsonify({"success": False, "error": f"Check the selected inputs: {e}"}), 400
+
+@app.route("/api/weather", methods=["GET"])
+@limiter.limit("30 per minute")
+def api_weather():
+    lat = request.args.get("lat")
+    lon = request.args.get("lon")
+    
+    try:
+        if not lat or not lon:
+            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            if client_ip and ',' in client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            
+            ip_url = "https://get.geojs.io/v1/ip/geo.json"
+            if client_ip and not client_ip.startswith("127.") and not client_ip.startswith("192.168.") and not client_ip.startswith("10."):
+                ip_url = f"https://get.geojs.io/v1/ip/geo/{client_ip}.json"
+                
+            req = urllib.request.Request(ip_url, headers={'User-Agent': 'TadkaChulha/1.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                geo_data = json_lib.loads(response.read().decode('utf-8'))
+                lat = geo_data.get("latitude")
+                lon = geo_data.get("longitude")
+                city = geo_data.get("city", "Local Area")
+                region = geo_data.get("region", "")
+                loc_name = f"{city}{', ' + region if region else ''}"
+        else:
+            loc_name = f"Lat {float(lat):.2f}, Lon {float(lon):.2f}"
+            try:
+                geo_url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
+                req_geo = urllib.request.Request(geo_url, headers={'User-Agent': 'TadkaChulha/1.0'})
+                with urllib.request.urlopen(req_geo, timeout=4) as response:
+                    geo_data = json_lib.loads(response.read().decode('utf-8'))
+                    place = geo_data.get("locality") or geo_data.get("city") or geo_data.get("principalSubdivision")
+                    if place:
+                        loc_name = f"{place}{', ' + geo_data.get('principalSubdivision') if geo_data.get('principalSubdivision') and place != geo_data.get('principalSubdivision') else ''}"
+            except Exception:
+                pass
+
+        if not lat or not lon:
+            return jsonify({"success": False, "error": "Could not resolve location coordinates"}), 400
+
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,wind_speed_10m"
+        req_w = urllib.request.Request(weather_url, headers={'User-Agent': 'TadkaChulha/1.0'})
+        with urllib.request.urlopen(req_w, timeout=5) as response:
+            w_data = json_lib.loads(response.read().decode('utf-8'))
+            temp = w_data.get("current", {}).get("temperature_2m")
+            wind_speed = w_data.get("current", {}).get("wind_speed_10m", 0)
+            
+            if temp is None:
+                return jsonify({"success": False, "error": "Temperature missing from weather dataset"}), 502
+                
+            wind_category = "Outdoors (Low Wind)"
+            if wind_speed < 5:
+                wind_category = "Indoors / Still Air"
+            elif 5 <= wind_speed < 15:
+                wind_category = "Outdoors (Low Wind)"
+            elif 15 <= wind_speed < 25:
+                wind_category = "Outdoors (Medium Wind)"
+            elif wind_speed >= 25:
+                wind_category = "Outdoors (High Wind)"
+
+            return jsonify({
+                "success": True,
+                "temp": temp,
+                "wind_speed": wind_speed,
+                "wind_category": wind_category,
+                "location": loc_name
+            })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

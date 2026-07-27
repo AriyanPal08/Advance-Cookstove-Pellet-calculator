@@ -394,38 +394,31 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.muteToggle.onclick = toggleMute;
         }
 
-        // Weather & Wind Auto-Detection Handler (with Dual IP-Location Fallback for Local Testing)
+        // Weather & Wind Auto-Detection Handler (via Server-Side API & CSP Safe)
         const btnDetectWeather = document.getElementById('btn-detect-weather');
         if (btnDetectWeather) {
-            const executeWeatherFetch = async (lat, lon, locName, statusEl, btnText, tempInput) => {
+            const fetchWeatherFromServer = async (lat, lon, statusEl, btnText, tempInput) => {
                 try {
-                    btnText.textContent = '[...] Fetching live weather dataset...';
-                    if (statusEl) statusEl.textContent = `[SYSTEM] Location identified (${locName}: ${lat.toFixed(2)}, ${lon.toFixed(2)}). Connecting to open weather dataset...`;
-
-                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m`);
-                    if (!res.ok) throw new Error('Weather API HTTP error ' + res.status);
+                    let url = '/api/weather';
+                    if (lat && lon) {
+                        url += `?lat=${lat}&lon=${lon}`;
+                    }
+                    const res = await fetch(url);
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.error || 'Server error ' + res.status);
+                    }
                     const data = await res.json();
-                    
-                    const temp = data.current?.temperature_2m;
-                    const windSpeed = data.current?.wind_speed_10m; // in km/h
+                    if (!data.success) throw new Error(data.error || 'Failed to fetch weather');
 
-                    if (temp !== undefined && windSpeed !== undefined && tempInput) {
+                    const temp = data.temp;
+                    const windSpeed = data.wind_speed;
+                    const windCategory = data.wind_category;
+                    const locName = data.location || 'Local Area';
+
+                    if (temp !== undefined && tempInput) {
                         tempInput.value = temp;
-                        
-                        let windCategory = "Outdoors (Low Wind)";
-                        if (windSpeed < 5) {
-                            windCategory = "Indoors / Still Air";
-                        } else if (windSpeed >= 5 && windSpeed < 15) {
-                            windCategory = "Outdoors (Low Wind)";
-                        } else if (windSpeed >= 15 && windSpeed < 25) {
-                            windCategory = "Outdoors (Medium Wind)";
-                        } else if (windSpeed >= 25) {
-                            windCategory = "Outdoors (High Wind)";
-                        }
-
-                        if (elements.windSelect) {
-                            elements.windSelect.value = windCategory;
-                        }
+                        if (elements.windSelect) elements.windSelect.value = windCategory;
 
                         tempInput.style.transition = 'background-color 0.3s ease';
                         tempInput.style.backgroundColor = 'rgba(45, 79, 54, 0.15)';
@@ -444,45 +437,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Weather fetch error:', err);
                     btnText.textContent = '[+] Auto-Detect Local Weather & Wind';
                     if (statusEl) {
-                        statusEl.textContent = '[WARNING] Could not fetch live weather dataset. Please enter temperature manually.';
+                        statusEl.textContent = '[WARNING] Could not detect live weather (' + err.message + '). Please enter temperature manually.';
                         statusEl.classList.remove('text-muted');
                         statusEl.classList.add('text-danger');
                     }
                 } finally {
                     btnDetectWeather.disabled = false;
-                }
-            };
-
-            const fallbackToIPLocation = async (statusEl, btnText, tempInput) => {
-                try {
-                    if (statusEl) statusEl.textContent = '[SYSTEM] GPS unavailable/denied. Attempting IP-based location fallback (no API key required)...';
-                    let lat, lon, locName;
-                    try {
-                        const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
-                        if (!ipRes.ok) throw new Error('geojs failed');
-                        const ipData = await ipRes.json();
-                        lat = parseFloat(ipData.latitude);
-                        lon = parseFloat(ipData.longitude);
-                        locName = `${ipData.city || 'Local Area'}${ipData.region ? ', ' + ipData.region : ''}`;
-                    } catch (e1) {
-                        const ipRes2 = await fetch('https://ipapi.co/json/');
-                        if (!ipRes2.ok) throw new Error('ipapi failed');
-                        const ipData2 = await ipRes2.json();
-                        lat = parseFloat(ipData2.latitude);
-                        lon = parseFloat(ipData2.longitude);
-                        locName = `${ipData2.city || 'Local Area'}${ipData2.region ? ', ' + ipData2.region : ''}`;
-                    }
-                    if (isNaN(lat) || isNaN(lon)) throw new Error('Invalid IP coordinates');
-                    await executeWeatherFetch(lat, lon, locName, statusEl, btnText, tempInput);
-                } catch (fallbackErr) {
-                    console.error('IP Fallback error:', fallbackErr);
-                    btnText.textContent = '[+] Auto-Detect Local Weather & Wind';
-                    btnDetectWeather.disabled = false;
-                    if (statusEl) {
-                        statusEl.textContent = '[WARNING] Location could not be detected via GPS or IP. Please enter temperature manually.';
-                        statusEl.classList.remove('text-muted');
-                        statusEl.classList.add('text-danger');
-                    }
                 }
             };
 
@@ -500,7 +460,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDetectWeather.disabled = true;
 
                 if (!navigator.geolocation) {
-                    await fallbackToIPLocation(statusEl, btnText, tempInput);
+                    if (statusEl) statusEl.textContent = '[SYSTEM] GPS unavailable. Resolving location via secure server endpoint...';
+                    await fetchWeatherFromServer(null, null, statusEl, btnText, tempInput);
                     return;
                 }
 
@@ -508,24 +469,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     async (position) => {
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
-                        let locName = `Lat ${lat.toFixed(2)}, Lon ${lon.toFixed(2)}`;
-                        try {
-                            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
-                            if (geoRes.ok) {
-                                const geoData = await geoRes.json();
-                                const place = geoData.locality || geoData.city || geoData.principalSubdivision;
-                                if (place) locName = `${place}${geoData.principalSubdivision && place !== geoData.principalSubdivision ? ', ' + geoData.principalSubdivision : ''}`;
-                            }
-                        } catch (e) {
-                            console.warn('Locality lookup fallback used.');
-                        }
-                        await executeWeatherFetch(lat, lon, locName, statusEl, btnText, tempInput);
+                        if (statusEl) statusEl.textContent = `[SYSTEM] GPS coordinates found (${lat.toFixed(2)}, ${lon.toFixed(2)}). Connecting to server...`;
+                        await fetchWeatherFromServer(lat, lon, statusEl, btnText, tempInput);
                     },
                     async (error) => {
-                        console.warn('GPS location failed/denied, switching to IP location:', error);
-                        await fallbackToIPLocation(statusEl, btnText, tempInput);
+                        console.warn('GPS location failed/denied, switching to secure server IP location:', error);
+                        if (statusEl) statusEl.textContent = '[SYSTEM] GPS permission denied or timed out. Resolving location via secure server endpoint...';
+                        await fetchWeatherFromServer(null, null, statusEl, btnText, tempInput);
                     },
-                    { timeout: 8000, maximumAge: 60000 }
+                    { timeout: 7000, maximumAge: 60000 }
                 );
             };
         }
