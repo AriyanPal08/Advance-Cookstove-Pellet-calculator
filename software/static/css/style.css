@@ -1198,8 +1198,18 @@ body {
   border-color: rgba(255,255,255,0.15);
 }
 
+.calculator-section.dark-mode-active .selection-explorer {
+  background: rgba(15, 15, 15, 0.65);
+  border-color: rgba(255,255,255,0.08);
+}
+
 .calculator-section.dark-mode-active .selection-collage {
   border: 1px solid rgba(255,255,255,0.08);
+}
+
+.calculator-section.dark-mode-active .selection-collage--pending {
+  background-color: rgba(25, 25, 25, 0.85);
+  color: #9CA3AF;
 }
 
 .calculator-section.dark-mode-active .selection-list {

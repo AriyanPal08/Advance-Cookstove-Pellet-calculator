@@ -1,5 +1,7 @@
 # Environments
 .env
+.env.*
+*.env*
 .venv
 env/
 venv/
@@ -7,14 +9,27 @@ ENV/
 env.bak/
 venv.bak/
 
-# API keys and secrets
+# API keys, tokens, and secrets
 *.pem
 *.key
+*key*.txt
+*.token
+*token*.txt
+*.secret*
+*.credentials*
 credentials.json
 client_secret.json
+secrets.json
 secrets.py
 .secret
 api_keys.txt
+api_keys.py
+auth.json
+config/secrets/
+.huggingface/
+.netrc
+id_rsa*
+*.pub
 
 # Python
 __pycache__/

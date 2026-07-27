@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <strong class="block truncate">${escapeHtml(cat)}</strong>
                                 <span class="selection-card__detail block truncate">${count} sizes available</span>
                             </div>
-                            <div class="shrink-0 opacity-50">➔</div>
+                            <div class="shrink-0 opacity-50">-&gt;</div>
                         </div>
                     </button>`;
                 }).join('');
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const backBtn = `
                     <button type="button" class="btn-ghost flex items-center gap-2 mb-4 w-max p-2 -ml-2" data-action="back">
-                        <span aria-hidden="true">←</span> Back to Categories
+                        <span aria-hidden="true">&lt;-</span> Back to Categories
                     </button>
                 `;
                 
@@ -394,6 +394,142 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.muteToggle.onclick = toggleMute;
         }
 
+        // Weather & Wind Auto-Detection Handler (with Dual IP-Location Fallback for Local Testing)
+        const btnDetectWeather = document.getElementById('btn-detect-weather');
+        if (btnDetectWeather) {
+            const executeWeatherFetch = async (lat, lon, locName, statusEl, btnText, tempInput) => {
+                try {
+                    btnText.textContent = '[...] Fetching live weather dataset...';
+                    if (statusEl) statusEl.textContent = `[SYSTEM] Location identified (${locName}: ${lat.toFixed(2)}, ${lon.toFixed(2)}). Connecting to open weather dataset...`;
+
+                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m`);
+                    if (!res.ok) throw new Error('Weather API HTTP error ' + res.status);
+                    const data = await res.json();
+                    
+                    const temp = data.current?.temperature_2m;
+                    const windSpeed = data.current?.wind_speed_10m; // in km/h
+
+                    if (temp !== undefined && windSpeed !== undefined && tempInput) {
+                        tempInput.value = temp;
+                        
+                        let windCategory = "Outdoors (Low Wind)";
+                        if (windSpeed < 5) {
+                            windCategory = "Indoors / Still Air";
+                        } else if (windSpeed >= 5 && windSpeed < 15) {
+                            windCategory = "Outdoors (Low Wind)";
+                        } else if (windSpeed >= 15 && windSpeed < 25) {
+                            windCategory = "Outdoors (Medium Wind)";
+                        } else if (windSpeed >= 25) {
+                            windCategory = "Outdoors (High Wind)";
+                        }
+
+                        if (elements.windSelect) {
+                            elements.windSelect.value = windCategory;
+                        }
+
+                        tempInput.style.transition = 'background-color 0.3s ease';
+                        tempInput.style.backgroundColor = 'rgba(45, 79, 54, 0.15)';
+                        setTimeout(() => { tempInput.style.backgroundColor = 'transparent'; }, 600);
+
+                        btnText.textContent = '[+] Auto-Detect Local Weather & Wind';
+                        if (statusEl) {
+                            statusEl.innerHTML = `<strong>[SUCCESS] Live Weather for ${locName}:</strong> Temperature is <strong>${temp}°C</strong> | Wind Speed is <strong>${windSpeed} km/h</strong>.<br><span style="opacity: 0.9;">Automatically mapped Wind Condition to <strong>'${windCategory}'</strong> for Step 4.</span>`;
+                            statusEl.classList.remove('text-muted');
+                            statusEl.classList.add('text-accent');
+                        }
+                    } else {
+                        throw new Error('Incomplete weather response');
+                    }
+                } catch (err) {
+                    console.error('Weather fetch error:', err);
+                    btnText.textContent = '[+] Auto-Detect Local Weather & Wind';
+                    if (statusEl) {
+                        statusEl.textContent = '[WARNING] Could not fetch live weather dataset. Please enter temperature manually.';
+                        statusEl.classList.remove('text-muted');
+                        statusEl.classList.add('text-danger');
+                    }
+                } finally {
+                    btnDetectWeather.disabled = false;
+                }
+            };
+
+            const fallbackToIPLocation = async (statusEl, btnText, tempInput) => {
+                try {
+                    if (statusEl) statusEl.textContent = '[SYSTEM] GPS unavailable/denied. Attempting IP-based location fallback (no API key required)...';
+                    let lat, lon, locName;
+                    try {
+                        const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
+                        if (!ipRes.ok) throw new Error('geojs failed');
+                        const ipData = await ipRes.json();
+                        lat = parseFloat(ipData.latitude);
+                        lon = parseFloat(ipData.longitude);
+                        locName = `${ipData.city || 'Local Area'}${ipData.region ? ', ' + ipData.region : ''}`;
+                    } catch (e1) {
+                        const ipRes2 = await fetch('https://ipapi.co/json/');
+                        if (!ipRes2.ok) throw new Error('ipapi failed');
+                        const ipData2 = await ipRes2.json();
+                        lat = parseFloat(ipData2.latitude);
+                        lon = parseFloat(ipData2.longitude);
+                        locName = `${ipData2.city || 'Local Area'}${ipData2.region ? ', ' + ipData2.region : ''}`;
+                    }
+                    if (isNaN(lat) || isNaN(lon)) throw new Error('Invalid IP coordinates');
+                    await executeWeatherFetch(lat, lon, locName, statusEl, btnText, tempInput);
+                } catch (fallbackErr) {
+                    console.error('IP Fallback error:', fallbackErr);
+                    btnText.textContent = '[+] Auto-Detect Local Weather & Wind';
+                    btnDetectWeather.disabled = false;
+                    if (statusEl) {
+                        statusEl.textContent = '[WARNING] Location could not be detected via GPS or IP. Please enter temperature manually.';
+                        statusEl.classList.remove('text-muted');
+                        statusEl.classList.add('text-danger');
+                    }
+                }
+            };
+
+            btnDetectWeather.onclick = async () => {
+                const statusEl = document.getElementById('weather-status');
+                const btnText = document.getElementById('weather-btn-text');
+                const tempInput = document.getElementById('t_ambient_c');
+                
+                btnText.textContent = '[...] Detecting coordinates...';
+                if (statusEl) {
+                    statusEl.textContent = '[SYSTEM] Requesting location access from browser...';
+                    statusEl.classList.remove('hidden', 'text-danger', 'text-accent');
+                    statusEl.classList.add('text-muted');
+                }
+                btnDetectWeather.disabled = true;
+
+                if (!navigator.geolocation) {
+                    await fallbackToIPLocation(statusEl, btnText, tempInput);
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        let locName = `Lat ${lat.toFixed(2)}, Lon ${lon.toFixed(2)}`;
+                        try {
+                            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+                            if (geoRes.ok) {
+                                const geoData = await geoRes.json();
+                                const place = geoData.locality || geoData.city || geoData.principalSubdivision;
+                                if (place) locName = `${place}${geoData.principalSubdivision && place !== geoData.principalSubdivision ? ', ' + geoData.principalSubdivision : ''}`;
+                            }
+                        } catch (e) {
+                            console.warn('Locality lookup fallback used.');
+                        }
+                        await executeWeatherFetch(lat, lon, locName, statusEl, btnText, tempInput);
+                    },
+                    async (error) => {
+                        console.warn('GPS location failed/denied, switching to IP location:', error);
+                        await fallbackToIPLocation(statusEl, btnText, tempInput);
+                    },
+                    { timeout: 8000, maximumAge: 60000 }
+                );
+            };
+        }
+
         // Search Handlers
         const setupSearch = (inputId, containerId) => {
             const input = document.getElementById(inputId);
@@ -449,6 +585,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Focus input if exists
             const input = currentStep.querySelector('input, select');
             if (input) input.focus();
+
+            // Smooth scroll to top of step card so user is never stuck looking at the footer
+            if (index > 0) {
+                const headerOffset = 90;
+                const elementPosition = (elements.calculatorSection || currentStep).getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
 
         updateProgress();
@@ -645,11 +791,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Safety
         let safetyHtml = "";
         if (r.flag_dry_boil) {
-            safetyHtml = `<div class="p-4 bg-red-50 text-red-700 rounded-xl font-bold">⚠️ CRITICAL: Dry-boil detected.</div>`;
+            safetyHtml = `<div class="p-4 bg-red-50 text-red-700 rounded-xl font-bold">[CRITICAL] Dry-boil detected.</div>`;
         } else if (r.flag_overheat) {
-            safetyHtml = `<div class="p-4 bg-red-50 text-red-700 rounded-xl font-bold">⚠️ WARNING: Vessel overheat (${r.T_pot_c.toFixed(1)}°C).</div>`;
+            safetyHtml = `<div class="p-4 bg-red-50 text-red-700 rounded-xl font-bold">[WARNING] Vessel overheat (${r.T_pot_c.toFixed(1)}°C).</div>`;
         } else {
-            safetyHtml = `<div class="p-4 bg-green-50 text-green-700 rounded-xl font-bold">✓ Safe operation confirmed. Final temp: ${r.T_pot_c.toFixed(1)}°C</div>`;
+            safetyHtml = `<div class="p-4 bg-green-50 text-green-700 rounded-xl font-bold">[SUCCESS] Safe operation confirmed. Final temp: ${r.T_pot_c.toFixed(1)}°C</div>`;
         }
         document.getElementById('receipt-safety').innerHTML = safetyHtml;
     }

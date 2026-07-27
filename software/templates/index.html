@@ -59,7 +59,7 @@
       <div class="hero-beat">
         <div class="beat-number">01</div>
         <div class="beat-title">Choose Your Dish</div>
-        <div class="beat-desc">23 Indian dishes with precise thermal properties</div>
+        <div class="beat-desc">36 Indian dishes with precise thermal properties</div>
       </div>
       <div class="hero-beat">
         <div class="beat-number">02</div>
@@ -154,7 +154,7 @@
           <div class="collage-banner collage-banner--food">
             <div class="collage-overlay"></div>
             <div class="collage-caption">
-              <h3>23 Indian Dishes</h3>
+              <h3>36 Indian Dishes</h3>
               <p>Each with precise thermal properties from food science literature</p>
             </div>
           </div>
@@ -190,7 +190,13 @@
         <!-- Step 3: Temperature -->
         <section id="step-temp" class="step-content">
           <p class="stat-label">03 / 08 — Ambient</p>
-          <h2 class="step-title">What's the outside temperature?</h2>
+          <h2 class="step-title">What's the ambient temperature?</h2>
+          <div class="mb-6">
+            <button type="button" id="btn-detect-weather" class="btn-ghost flex items-center gap-2 py-2 px-4 bg-surface border border-border rounded-xl text-foreground font-semibold hover:border-accent transition-all w-max shadow-sm" style="font-size: 0.85rem;">
+              <span id="weather-btn-text">[+] Auto-Detect Local Weather &amp; Wind</span>
+            </button>
+            <p id="weather-status" class="text-xs text-muted mt-2 hidden" style="line-height: 1.4;"></p>
+          </div>
           <div class="relative">
             <input type="number" id="t_ambient_c" name="t_ambient_c" class="input-large" value="25" step="0.1" required>
             <span class="absolute right-0 bottom-6 text-xl font-bold opacity-30">°C</span>
@@ -225,7 +231,7 @@
           </div>
           <div class="search-container mb-4 relative">
             <input type="search" id="search-pellet" class="input-search" placeholder="Search pellets..." aria-label="Search pellets">
-            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50"></span>
           </div>
           <div class="selection-list" id="pellet-cards" aria-label="Pellet options"></div>
           <select id="pellet_name" name="pellet_name" class="select-large sr-only" required></select>
@@ -248,7 +254,7 @@
           </div>
           <div class="search-container mb-4 relative">
             <input type="search" id="search-utensil" class="input-search" placeholder="Search vessels..." aria-label="Search utensils">
-            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50">🔍</span>
+            <span class="search-icon absolute right-4 top-1/2 -translate-y-1/2 opacity-50"></span>
           </div>
           <div class="selection-explorer" data-explorer="utensil">
             <div class="selection-collage selection-collage--utensils" aria-hidden="true"></div>
