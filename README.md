@@ -80,4 +80,8 @@ $$\text{Pellets (g)} = \left(\frac{t_{elapsed}}{3600}\right) \times \text{FAN\_H
 
 FAN_HIGH (Mechanical Feed Limit): $0.78 \text{ kg/hr}$
 
+## Developers
+- **Ariyan Pal** (Lead Developer)
+- **Yash Tyagi** (Co-Developer & Contributor)
+
 Developed for the IIT Delhi Department of Energy Studies.
