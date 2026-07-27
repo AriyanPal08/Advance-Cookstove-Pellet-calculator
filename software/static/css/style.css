@@ -781,16 +781,21 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem 2.5rem;
+  padding: 1.35rem 3.5rem !important;
+  min-height: 58px;
+  min-width: 160px;
   background-color: var(--color-foreground);
   color: var(--color-background);
   font-weight: 700;
   border-radius: 9999px;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 1.05rem;
   border: none;
   cursor: pointer;
   transition: all 300ms ease;
+  touch-action: manipulation !important;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -811,7 +816,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -821,10 +826,24 @@ body {
   font-family: inherit;
   cursor: pointer;
   transition: color 300ms ease;
+  touch-action: manipulation !important;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn-ghost:hover {
   color: var(--color-foreground);
+}
+
+.btn-next, .btn-prev {
+  touch-action: manipulation !important;
+  cursor: pointer !important;
+}
+
+.btn-ghost.btn-prev {
+  padding: 1rem 2rem !important;
+  min-height: 48px;
+  min-width: 100px;
 }
 
 /* 12. REVIEW & PREVIEW */

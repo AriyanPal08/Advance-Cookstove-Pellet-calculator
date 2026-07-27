@@ -325,14 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachListeners() {
         // Start Button
         const btnStart = document.getElementById('btn-start');
-        if (btnStart) btnStart.onclick = () => goToStep(1);
+        if (btnStart) btnStart.onclick = (e) => { if (e) e.preventDefault(); goToStep(1); };
 
         // Navigation Buttons
         document.querySelectorAll('.btn-next').forEach(btn => {
             btn.onclick = (e) => {
-                const section = e.target.closest('section');
+                if (e) e.preventDefault();
+                const section = btn.closest('section');
                 if (validateSection(section)) {
-                    if (e.target.id === 'btn-to-review') {
+                    if (btn.id === 'btn-to-review') {
                         handleToReview();
                     } else {
                         nextStep();
@@ -342,7 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.querySelectorAll('.btn-prev').forEach(btn => {
-            btn.onclick = prevStep;
+            btn.onclick = (e) => {
+                if (e) e.preventDefault();
+                prevStep();
+            };
         });
 
         // Dynamic Updates
@@ -351,15 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Review & Simulate
         const btnBackToForm = document.getElementById('btn-back-to-form');
-        if (btnBackToForm) btnBackToForm.onclick = () => goToStep(state.steps.indexOf('lid'));
+        if (btnBackToForm) btnBackToForm.onclick = (e) => { if (e) e.preventDefault(); goToStep(state.steps.indexOf('lid')); };
         
         const btnSimulate = document.getElementById('btn-simulate');
-        if (btnSimulate) btnSimulate.onclick = runSimulation;
+        if (btnSimulate) btnSimulate.onclick = (e) => { if (e) e.preventDefault(); runSimulation(); };
 
         // Restart
         const btnRestart = document.getElementById('btn-restart');
-        if (btnRestart) btnRestart.onclick = restart;
-        if (elements.btnRestartTop) elements.btnRestartTop.onclick = restart;
+        if (btnRestart) btnRestart.onclick = (e) => { if (e) e.preventDefault(); restart(); };
+        if (elements.btnRestartTop) elements.btnRestartTop.onclick = (e) => { if (e) e.preventDefault(); restart(); };
 
         // New events
         const btnHeroCalculate = document.getElementById('btn-hero-calculate');
