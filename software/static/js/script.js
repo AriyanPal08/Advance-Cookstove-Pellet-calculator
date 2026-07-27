@@ -66,14 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/init');
             if (!response.ok) throw new Error('Load failed');
             state.appData = await response.json();
-            populateSelects();
-            attachListeners();
-            initScrollytelling();
-            initSectionNav();
-            initModals();
         } catch (err) {
-            console.error(err);
+            console.error('Failed to load app data:', err);
+            return; // Prevent populateSelects from crashing on empty appData
         }
+        populateSelects();
+        attachListeners();
+        initScrollytelling();
+        initSectionNav();
+        initModals();
     }
 
     // 5. POPULATE SELECTS
@@ -696,21 +697,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // 21. renderReceipt
     function renderReceipt() {
         const r = state.results;
+        if (!r) return;
         
         // Pellet Load
         const pelletsG = r.pellets_required_g;
-        elements.receiptStep.querySelector('#receipt-pellets').textContent = 
+        const pelletEl = document.getElementById('receipt-pellets');
+        if (pelletEl) pelletEl.textContent = 
             pelletsG >= 1000 ? `${(pelletsG/1000).toFixed(2)} kg` : `${pelletsG.toFixed(0)} g`;
 
         // Times
-        document.getElementById('receipt-times').innerHTML = `
+        const timesEl = document.getElementById('receipt-times');
+        if (timesEl) timesEl.innerHTML = `
             <div class="flex justify-between"><span class="text-muted">Heat-up</span><span class="font-bold">${(r.t_heat_est_s/60).toFixed(1)}m</span></div>
             <div class="flex justify-between"><span class="text-muted">Kinetic</span><span class="font-bold">${(r.t_kinetic_base_s/60).toFixed(1)}m</span></div>
             <div class="flex justify-between border-t border-border pt-2 mt-2"><span class="text-foreground font-bold">Total Duration</span><span class="font-bold text-accent">${r.t_total_min_user.toFixed(1)}m</span></div>
         `;
 
         // Energy
-        document.getElementById('receipt-energy').innerHTML = `
+        const energyEl = document.getElementById('receipt-energy');
+        if (energyEl) energyEl.innerHTML = `
             <div class="flex justify-between"><span class="text-muted">Energy Supplied</span><span class="font-bold">${r.Q_in_kj.toFixed(0)} kJ</span></div>
             <div class="flex justify-between"><span class="text-muted">Heat Losses</span><span class="font-bold">${r.Q_out_kj.toFixed(0)} kJ</span></div>
             <div class="flex justify-between"><span class="text-muted">Sensible Heat</span><span class="font-bold">${r.Q_sensible_kj.toFixed(0)} kJ</span></div>
@@ -726,7 +731,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             safetyHtml = `<div class="p-4 bg-green-50 text-green-700 rounded-xl font-bold">[SUCCESS] Safe operation confirmed. Final temp: ${r.T_pot_c.toFixed(1)}°C</div>`;
         }
-        document.getElementById('receipt-safety').innerHTML = safetyHtml;
+        const safetyEl = document.getElementById('receipt-safety');
+        if (safetyEl) safetyEl.innerHTML = safetyHtml;
 
         // Pressure Cooker Rice Informational Note
         const utensil = state.appData.utensils.find(u => u.name === state.formData.utensil_name);

@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tadka Chulha — Advanced Pellet Calculator</title>
   <meta name="description" content="Precision pellet load and cook-time calculator for the Tadka Chulha biomass cookstove. Physics-based 1 Hz thermal simulation.">
+  <meta name="theme-color" content="#2D4F36">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=3.1.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.3.0">
   <script type="text/javascript">
     function googleTranslateElementInit() {
       new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi', autoDisplay: false}, 'google_translate_element');
@@ -113,7 +114,7 @@
         <h3> Lid & Pressure Cooker</h3>
         <p><strong>Lid state</strong> — Open, covered, or sealed pressure cooker each dramatically change evaporation rate and heat loss.</p>
         <p><strong>Pressure cooker correction</strong> — An Arrhenius-kinetics-derived, empirically-calibrated correction for post-whistle cooking speed. This is currently validated against a limited number of physical tests and is still being refined.</p>
-        <p class="mt-3 p-3 bg-amber-50/80 border border-amber-300 rounded-lg text-amber-900 font-medium">Note: The pressure cooker model is under active calibration. Do not treat these estimates as fully validated — they are best-effort approximations pending further field testing.</p>
+        <p class="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 font-medium">Note: The pressure cooker model is under active calibration. Do not treat these estimates as fully validated — they are best-effort approximations pending further field testing.</p>
         <div class="citation">Arrhenius kinetics model with empirical calibration factors. Field validation in progress.</div>
       </div>
       <!-- Panel 5 -->
@@ -193,7 +194,7 @@
           <h2 class="step-title">What's the ambient temperature?</h2>
           <div class="mb-6">
             <button type="button" id="btn-detect-weather" class="btn-ghost flex items-center gap-2 py-2 px-4 bg-surface border border-border rounded-xl text-foreground font-semibold hover:border-accent transition-all w-max shadow-sm" style="font-size: 0.85rem;">
-              <span id="weather-btn-text">[+] Auto-Detect Local Weather &amp; Wind</span>
+              <span id="weather-btn-text">Auto-Detect Local Weather &amp; Wind</span>
             </button>
             <p id="weather-status" class="text-xs text-muted mt-2 hidden" style="line-height: 1.4;"></p>
           </div>
@@ -378,8 +379,8 @@
       <div class="mb-4">
         <p class="font-bold text-white">Ariyan Pal</p>
         <p>Email: <a href="mailto:ariyanpal0@gmail.com">ariyanpal0@gmail.com</a></p>
-        <p>LinkedIn: <a href="http://linkedin.com/in/ariyan-pal-590b0b321/" target="_blank">View Profile</a></p>
-        <p>GitHub: <a href="https://github.com/AriyanPal08" target="_blank">AriyanPal08</a></p>
+        <p>LinkedIn: <a href="http://linkedin.com/in/ariyan-pal-590b0b321/" target="_blank" rel="noopener noreferrer">View Profile</a></p>
+        <p>GitHub: <a href="https://github.com/AriyanPal08" target="_blank" rel="noopener noreferrer">AriyanPal08</a></p>
       </div>
       <div>
         <p class="font-bold text-white">Yash Tyagi</p>
@@ -411,12 +412,12 @@
 <!-- Attributions Modal -->
 <div class="modal-backdrop" id="modal-attributions">
   <div class="modal-content">
-    <button class="modal-close" aria-label="Close">✖</button>
+    <button class="modal-close" aria-label="Close">✕</button>
     <h2 class="step-title" style="font-size:1.5rem">Attributions</h2>
     <p>Photography and images are provided under fair use or open-source licenses. Full attribution list available in <a href="/credit.md" target="_blank" class="text-accent underline">credit.md</a>.</p>
   </div>
 </div>
 
-<script src="/static/js/script.js?v=3.2.0"></script>
+<script src="/static/js/script.js?v=3.3.0"></script>
 </body>
 </html>
