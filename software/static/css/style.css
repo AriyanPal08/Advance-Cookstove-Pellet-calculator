@@ -781,21 +781,24 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1.35rem 3.5rem !important;
-  min-height: 58px;
-  min-width: 160px;
+  padding: 1.5rem 4rem !important;
+  min-height: 64px !important;
+  min-width: 180px !important;
   background-color: var(--color-foreground);
   color: var(--color-background);
   font-weight: 700;
   border-radius: 9999px;
   font-family: inherit;
-  font-size: 1.05rem;
+  font-size: 1.15rem !important;
   border: none;
-  cursor: pointer;
+  cursor: pointer !important;
   transition: all 300ms ease;
   touch-action: manipulation !important;
   user-select: none;
   -webkit-user-select: none;
+  position: relative !important;
+  z-index: 20 !important;
+  box-sizing: border-box !important;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -824,7 +827,7 @@ body {
   background: none;
   border: none;
   font-family: inherit;
-  cursor: pointer;
+  cursor: pointer !important;
   transition: color 300ms ease;
   touch-action: manipulation !important;
   user-select: none;
@@ -838,12 +841,14 @@ body {
 .btn-next, .btn-prev {
   touch-action: manipulation !important;
   cursor: pointer !important;
+  position: relative !important;
+  z-index: 20 !important;
 }
 
 .btn-ghost.btn-prev {
-  padding: 1rem 2rem !important;
-  min-height: 48px;
-  min-width: 100px;
+  padding: 1.25rem 2.5rem !important;
+  min-height: 52px !important;
+  min-width: 120px !important;
 }
 
 /* 12. REVIEW & PREVIEW */
@@ -1382,7 +1387,7 @@ body {
 }
 
 /* ============================================
-   Hide Google Translate Default UI & Hover Highlights
+   Hide Google Translate Default UI, Banners & Hover Highlights
    ============================================ */
 #google_translate_element {
   position: absolute !important;
@@ -1394,17 +1399,27 @@ body {
   opacity: 0 !important;
   pointer-events: none !important;
 }
-.goog-te-banner-frame.skiptranslate {
+.goog-te-banner-frame.skiptranslate, .goog-te-banner-frame, #goog-gt-tt, .skiptranslate[style*="top"] {
   display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0 !important;
 }
-body {
+iframe[src*="translate.google"], iframe[class*="skiptranslate"], iframe[id*="gt"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  border: none !important;
+}
+body, html {
   top: 0px !important;
+  position: static !important;
 }
-.goog-tooltip {
+.goog-tooltip, .goog-tooltip:hover {
   display: none !important;
-}
-.goog-tooltip:hover {
-  display: none !important;
+  visibility: hidden !important;
 }
 .goog-text-highlight {
   background-color: transparent !important;

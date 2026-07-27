@@ -9,24 +9,48 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=3.7.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.8.0">
   <script type="text/javascript">
     function googleTranslateElementInit() {
       new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi', autoDisplay: false}, 'google_translate_element');
     }
     function toggleLanguage() {
       const select = document.querySelector('.goog-te-combo') || document.querySelector('#google_translate_element select');
+      if (!select) {
+        alert('Translation service is initializing... Please try again in a moment.');
+        return;
+      }
       const btn = document.getElementById('lang-toggle');
-      const isHindi = document.cookie.includes('googtrans=/en/hi') || (select && select.value.startsWith('hi'));
-      const newLang = isHindi ? 'en' : 'hi';
+      const isCurrentlyHindi = document.documentElement.classList.contains('translated-ltr') || document.documentElement.classList.contains('translated-rtl') || (btn && btn.innerText === 'EN') || select.value.includes('hi');
 
-      if (newLang === 'hi') {
+      if (!isCurrentlyHindi) {
+        // Switch to Hindi
+        let foundIndex = -1;
+        for (let i = 0; i < select.options.length; i++) {
+          if (select.options[i].value.includes('hi') || select.options[i].text.toLowerCase().includes('hindi') || select.options[i].text.toLowerCase().includes('हिन्दी')) {
+            foundIndex = i;
+            break;
+          }
+        }
+        if (foundIndex !== -1) {
+          select.selectedIndex = foundIndex;
+          select.value = select.options[foundIndex].value;
+        } else {
+          select.value = 'hi';
+        }
         document.cookie = "googtrans=/en/hi; path=/;";
         if (window.location.hostname) {
           document.cookie = "googtrans=/en/hi; domain=." + window.location.hostname + "; path=/;";
         }
         if (btn) btn.innerText = 'EN';
       } else {
+        // Switch back to English (Original language at index 0)
+        select.selectedIndex = 0;
+        if (select.options.length > 0) {
+          select.value = select.options[0].value;
+        } else {
+          select.value = 'en';
+        }
         document.cookie = "googtrans=/en/en; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
         document.cookie = "googtrans=/en/; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
         document.cookie = "googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC";
@@ -38,20 +62,9 @@
         if (btn) btn.innerText = 'HI';
       }
 
-      if (select) {
-        select.value = newLang === 'hi' ? 'hi' : '';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        select.dispatchEvent(new Event('input', { bubbles: true }));
-        if (typeof select.onchange === 'function') select.onchange();
-      }
-
-      // Guaranteed fallback: if browser blocks synthetic DOM events on Google iframe, reload to apply cookie
-      setTimeout(() => {
-        const isTranslated = document.documentElement.classList.contains('translated-ltr') || document.documentElement.classList.contains('translated-rtl');
-        if ((newLang === 'hi' && !isTranslated) || (newLang === 'en' && isTranslated)) {
-          window.location.reload();
-        }
-      }, 500);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof select.onchange === 'function') select.onchange();
     }
     window.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('lang-toggle');
