@@ -728,6 +728,26 @@ document.addEventListener('DOMContentLoaded', () => {
             safetyHtml = `<div class="p-4 bg-green-50 text-green-700 rounded-xl font-bold">[SUCCESS] Safe operation confirmed. Final temp: ${r.T_pot_c.toFixed(1)}°C</div>`;
         }
         document.getElementById('receipt-safety').innerHTML = safetyHtml;
+
+        // Pressure Cooker Rice Informational Note
+        const utensil = state.appData.utensils.find(u => u.name === state.formData.utensil_name);
+        const isPressureCooker = utensil ? utensil.is_pressure : (state.formData.utensil_name && state.formData.utensil_name.toLowerCase().includes('pressure'));
+        const isRice = state.formData.dish_name && state.formData.dish_name.toLowerCase().includes('rice');
+        const riceNoteEl = document.getElementById('receipt-rice-note');
+        if (riceNoteEl) {
+            if (isPressureCooker && isRice) {
+                riceNoteEl.innerHTML = `
+                    <div class="p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-left">
+                        <h4 class="font-bold mb-1">Pressure cooker rice estimate</h4>
+                        <p class="text-sm leading-relaxed">This result is based on current calibration. In lab tests, rice in small pressure cookers can finish near 12–13 minutes (around 3 whistles). Always check the rice and extend time if needed. Bottom burning can occur if cooking continues too long.</p>
+                    </div>
+                `;
+                riceNoteEl.classList.remove('hidden');
+            } else {
+                riceNoteEl.innerHTML = "";
+                riceNoteEl.classList.add('hidden');
+            }
+        }
     }
 
     // 22. updateProgress
