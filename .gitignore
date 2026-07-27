@@ -19,17 +19,34 @@ venv.bak/
 *.credentials*
 credentials.json
 client_secret.json
+service-account*.json
+*creds*.json
+*creds*.yaml
+*creds*.yml
 secrets.json
 secrets.py
+*secret*.yaml
+*secret*.yml
 .secret
 api_keys.txt
 api_keys.py
 auth.json
 config/secrets/
+config.local.json
+local.settings.json
 .huggingface/
+.aws/
+.azure/
+.gcp/
 .netrc
 id_rsa*
 *.pub
+*.cert
+*.crt
+*.pfx
+*.p12
+*.keystore
+*.jks
 
 # Python
 __pycache__/

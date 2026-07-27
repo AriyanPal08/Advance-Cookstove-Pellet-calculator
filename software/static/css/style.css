@@ -1363,11 +1363,25 @@ body {
 }
 
 /* ============================================
-   Hide Google Translate Default UI
+   Hide Google Translate Default UI & Hover Highlights
    ============================================ */
-#google_translate_element, .skiptranslate {
+#google_translate_element {
+  display: none !important;
+}
+.goog-te-banner-frame.skiptranslate {
   display: none !important;
 }
 body {
-  top: 0 !important;
+  top: 0px !important;
+}
+.goog-tooltip {
+  display: none !important;
+}
+.goog-tooltip:hover {
+  display: none !important;
+}
+.goog-text-highlight {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }

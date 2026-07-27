@@ -9,20 +9,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css?v=3.3.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.4.0">
   <script type="text/javascript">
     function googleTranslateElementInit() {
       new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi', autoDisplay: false}, 'google_translate_element');
     }
     function toggleLanguage() {
-      const select = document.querySelector('.goog-te-combo');
+      const select = document.querySelector('.goog-te-combo') || document.querySelector('#google_translate_element select');
       if (select) {
         const btn = document.getElementById('lang-toggle');
         const currentLang = select.value;
-        const newLang = currentLang === 'hi' ? 'en' : 'hi';
+        const isHindi = currentLang.startsWith('hi');
+        const newLang = isHindi ? 'en' : 'hi';
         select.value = newLang;
-        select.dispatchEvent(new Event('change'));
-        btn.innerText = newLang === 'hi' ? 'EN' : 'HI';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        if (btn) btn.innerText = isHindi ? 'HI' : 'EN';
+      } else {
+        alert('Translation service is initializing... Please try again in a moment.');
       }
     }
   </script>
