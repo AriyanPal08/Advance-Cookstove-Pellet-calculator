@@ -310,25 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (onChange) onChange();
             sync();
         });
-        let scrollTimeout = null;
-        container.addEventListener('scroll', () => {
-            if (scrollTimeout) return;
-            scrollTimeout = setTimeout(() => {
-                scrollTimeout = null;
-                const cards = [...container.querySelectorAll('.selection-card')];
-                if (cards.length === 0) return;
-                const centre = container.getBoundingClientRect().top + container.clientHeight / 2;
-                const nearest = cards.reduce((best, card) => Math.abs(card.getBoundingClientRect().top + card.offsetHeight / 2 - centre) < Math.abs(best.getBoundingClientRect().top + best.offsetHeight / 2 - centre) ? card : best, cards[0]);
-                if (nearest && nearest.dataset.value !== select.value) {
-                    select.value = nearest.dataset.value;
-                    if (container === elements.dishCards) {
-                        state.userHasSelectedDish = true;
-                    }
-                    if (onChange) onChange();
-                    sync();
-                }
-            }, 100); // Throttle scroll to max 10 fps to prevent mobile lag
-        }, { passive: true });
         sync();
     }
 
@@ -384,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btnHeroCalculate) {
             btnHeroCalculate.onclick = () => {
                 if (elements.calculatorSection) {
-                    elements.calculatorSection.scrollIntoView({ behavior: 'smooth' });
+                    smoothScrollTo(elements.calculatorSection, 80);
                 }
                 goToStep(0);
             };
@@ -540,12 +521,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Smooth scroll to top of step card so user is never stuck looking at the footer
             if (index > 0) {
-                const headerOffset = 90;
-                const elementPosition = (elements.calculatorSection || currentStep).getBoundingClientRect().top;
-                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-                window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                smoothScrollTo(elements.calculatorSection || currentStep, 80);
             } else {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 30);
             }
         }
 
@@ -782,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         goToStep(0);
         if (elements.calculatorSection) {
-            elements.calculatorSection.scrollIntoView({ behavior: 'smooth' });
+            smoothScrollTo(elements.calculatorSection, 80);
         }
     }
 
@@ -825,6 +803,19 @@ document.addEventListener('DOMContentLoaded', () => {
         panels.forEach(panel => observer.observe(panel));
     }
 
+    // Helper for buttery smooth native scrolling with navbar offset
+    function smoothScrollTo(element, offset = 80) {
+        if (!element) return;
+        setTimeout(() => {
+            const elementPosition = element.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - offset;
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+        }, 30);
+    }
+
     // 26. SECTION NAVIGATION
     function initSectionNav() {
         // Smooth scroll for nav links
@@ -832,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const target = document.querySelector(link.getAttribute('href'));
-                if (target) target.scrollIntoView({ behavior: 'smooth' });
+                if (target) smoothScrollTo(target, 72);
             });
         });
         
