@@ -23,13 +23,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Set up Security Headers (Talisman)
 csp = {
-    'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://translate.google.com", "https://translate.googleapis.com", "https://www.google.com", "https://www.gstatic.com"],
-    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://translate.googleapis.com", "https://translate.google.com", "https://www.google.com", "https://www.gstatic.com"],
-    'font-src': ["'self'", "https://fonts.gstatic.com", "https://translate.googleapis.com", "https://translate.google.com"],
-    'img-src': ["'self'", "data:", "blob:", "https://www.google.com", "https://www.gstatic.com", "https://translate.googleapis.com", "https://translate.google.com"],
-    'connect-src': ["'self'", "https://api.open-meteo.com", "https://get.geojs.io", "https://ipapi.co", "https://api.bigdatacloud.net", "https://translate.googleapis.com", "https://translate.google.com", "https://www.google.com", "https://www.gstatic.com"],
-    'frame-src': ["'self'", "https://translate.google.com", "https://translate.googleapis.com", "https://www.google.com"],
+    'default-src': ["'self'", "https://*.google.com", "https://*.googleapis.com", "https://*.gstatic.com", "https://*.google.co.in"],
+    'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.google.com", "https://*.googleapis.com", "https://*.gstatic.com", "https://*.google.co.in", "http://*.google.com"],
+    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.googleapis.com", "https://*.google.com", "https://*.gstatic.com", "https://*.google.co.in"],
+    'font-src': ["'self'", "https://fonts.gstatic.com", "https://*.gstatic.com", "https://*.googleapis.com", "https://*.google.com"],
+    'img-src': ["'self'", "data:", "blob:", "https://*.google.com", "https://*.gstatic.com", "https://*.googleapis.com", "https://*.google.co.in", "http://*.google.com"],
+    'connect-src': ["'self'", "https://api.open-meteo.com", "https://get.geojs.io", "https://ipapi.co", "https://api.bigdatacloud.net", "https://*.googleapis.com", "https://*.google.com", "https://*.gstatic.com", "https://*.google.co.in"],
+    'frame-src': ["'self'", "https://*.google.com", "https://*.googleapis.com", "https://*.google.co.in", "http://*.google.com"],
 }
 # Automatically force HTTPS if FLASK_ENV is set to production
 is_prod = os.environ.get("FLASK_ENV") == "production"
