@@ -363,11 +363,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // New events
         const btnHeroCalculate = document.getElementById('btn-hero-calculate');
         if (btnHeroCalculate) {
-            btnHeroCalculate.onclick = () => {
+            btnHeroCalculate.onclick = (e) => {
+                if (e) e.preventDefault();
+                goToStep(0);
                 if (elements.calculatorSection) {
                     smoothScrollTo(elements.calculatorSection, 80);
                 }
-                goToStep(0);
             };
         }
 
@@ -519,11 +520,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = currentStep.querySelector('input, select');
             if (input) input.focus();
 
-            // Smooth scroll to top of step card so user is never stuck looking at the footer
-            if (index > 0) {
-                smoothScrollTo(elements.calculatorSection || currentStep, 80);
-            } else {
-                setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 30);
+            // Smooth scroll to top of calculator section so user is never stuck looking at the footer or thrown to top of page
+            if (elements.calculatorSection) {
+                smoothScrollTo(elements.calculatorSection, 80);
             }
         }
 
