@@ -606,14 +606,9 @@ def collect_inputs() -> dict:
         inp["cp_food"]         = dish.cp_food_kj_kgk
         inp["m_water_initial"] = dish.added_water_per_serving_kg  * n
         
-        kinetic_time_s = 0.0
-        for stage in dish.stages:
-            if stage.stage_type == "kinetic":
-                # Currently set to 1.0 (no correction)
-                kinetic_time_s += stage.duration_s * PRESSURE_POST_BOIL_FACTOR
-            elif stage.stage_type == "frying":
-                kinetic_time_s += stage.duration_s
-        inp["t_kinetic_base_s"] = kinetic_time_s
+        # We defer the actual kinetic time calculation until AFTER Step 5 
+        # (Utensil Selection) so we know if it's a pressure cooker.
+        inp["t_kinetic_base_s"] = 0.0
 
     # ── Step 3: Ambient temperature ───────────────────────────────────────────
     _sec("Step 3 / 7  —  Ambient Temperature")
@@ -692,6 +687,18 @@ def collect_inputs() -> dict:
     inp["emissivity"] = _emissivity_for_utensil(utensil)
     geom = compute_vessel_geometry(m_w, inp["utensil_name"], inp["lid_factor"])
     inp.update(geom)
+
+    # ── Recalculate kinetic time now that we know if it's a pressure cooker ──
+    if not dish.variable_water:
+        kinetic_time_s = 0.0
+        for stage in dish.stages:
+            if stage.stage_type == "kinetic":
+                kinetic_time_s += stage.duration_s * (
+                    PRESSURE_POST_BOIL_FACTOR if inp.get("is_pc", False) else 1.0
+                )
+            elif stage.stage_type == "frying":
+                kinetic_time_s += stage.duration_s
+        inp["t_kinetic_base_s"] = kinetic_time_s
 
     # ── Step 7: Total Time Estimator  (full transient preview) ───────────────
     _sec("Step 7 / 7  —  Total Cooking Time (Heating + Simmering)")
