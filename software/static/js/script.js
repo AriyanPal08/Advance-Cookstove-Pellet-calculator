@@ -703,11 +703,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = state.results;
         if (!r) return;
         
-        // Pellet Load
-        const pelletsG = r.pellets_required_g;
+        // Pellet Load Range
+        const pelletsRequiredG = r.pellets_required_g || 0;
+        const pelletsEnergyG = r.pellets_energy_based_g || 0;
+        
+        let minPellets = Math.min(pelletsRequiredG, pelletsEnergyG);
+        let maxPellets = Math.max(pelletsRequiredG, pelletsEnergyG);
+        if (minPellets === 0 && maxPellets > 0) minPellets = maxPellets;
+        
         const pelletEl = document.getElementById('receipt-pellets');
-        if (pelletEl) pelletEl.textContent = 
-            pelletsG >= 1000 ? `${(pelletsG/1000).toFixed(2)} kg` : `${pelletsG.toFixed(0)} g`;
+        if (pelletEl) {
+            if (maxPellets >= 1000) {
+                const minKg = (minPellets / 1000).toFixed(2);
+                const maxKg = (maxPellets / 1000).toFixed(2);
+                pelletEl.textContent = minKg === maxKg ? `${maxKg} kg` : `${minKg} - ${maxKg} kg`;
+            } else {
+                const minG = minPellets.toFixed(0);
+                const maxG = maxPellets.toFixed(0);
+                pelletEl.textContent = minG === maxG ? `${maxG} g` : `${minG} - ${maxG} g`;
+            }
+        }
 
         // Times
         const timesEl = document.getElementById('receipt-times');

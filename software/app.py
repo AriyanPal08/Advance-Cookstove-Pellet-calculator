@@ -302,6 +302,7 @@ def simulate():
             "t_phase3_s": inp["t_phase3_s"],
             "pellets_required_g": inp["pellets_required_g"],
             "pellets_time_based_g": inp.get("pellets_time_based_g", 0),
+            "pellets_energy_based_g": inp.get("pellets_energy_based_g", 0),
             "tick_log": inp["tick_log"]
         }
         
