@@ -705,10 +705,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Pellet Load Range
         const pelletsRequiredG = r.pellets_required_g || 0;
-        const pelletsEnergyG = r.pellets_energy_based_g || 0;
+        const pelletsTimeBaseG = r.pellets_time_based_g || pelletsRequiredG;
         
-        let minPellets = Math.min(pelletsRequiredG, pelletsEnergyG);
-        let maxPellets = Math.max(pelletsRequiredG, pelletsEnergyG);
+        let minPellets = Math.min(pelletsRequiredG, pelletsTimeBaseG);
+        let maxPellets = Math.max(pelletsRequiredG, pelletsTimeBaseG);
         if (minPellets === 0 && maxPellets > 0) minPellets = maxPellets;
         
         const pelletEl = document.getElementById('receipt-pellets');
