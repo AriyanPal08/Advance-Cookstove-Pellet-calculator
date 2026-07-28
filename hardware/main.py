@@ -827,14 +827,18 @@ def display_results(inp):
 
     # ── Step 3: Recalculate Pellets for User's Time ──────────────────────────
     margin_factor = inp.get("procurement_margin_factor", 1.08)
-    pellets_g = (user_total_s / 3600.0) * main_logic.FAN_HIGH * 1000.0 * margin_factor
+    pellets_base_g = (user_total_s / 3600.0) * main_logic.FAN_HIGH * 1000.0
+    pellets_g = pellets_base_g * margin_factor
 
     # Hard cap at 1300g per user rules
+    if pellets_base_g > 1300:
+        pellets_base_g = 1300
     if pellets_g > 1300:
         pellets_g = 1300
 
     # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
-    lcd_show("{:.0f}min {:.0f}g".format(user_min, pellets_g),
+    # Using 'm' instead of 'min' guarantees string length <= 16 for the 16x2 LCD
+    lcd_show("{:.0f}m {:.0f}-{:.0f}g".format(user_min, pellets_base_g, pellets_g),
              "Press to START")
 
     while not was_pressed(): time.sleep_ms(50)
