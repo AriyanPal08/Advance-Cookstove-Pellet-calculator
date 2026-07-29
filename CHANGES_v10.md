@@ -2,34 +2,38 @@ Biomass Cookstove Pellet Calculator — v11 Change Documentation
 
 Version: 11.0
 
-Scope: Complete transition to a Production-Ready Web Application, Automated Environmental APIs, Hardware UI Refinements, and Docker Containerization.
+Scope: Complete architectural transformation from a local CLI utility to a Production-Ready Web Application, Automated Open-Meteo Environmental APIs, Comprehensive Hardware MicroPython Refinements, and Full Docker Containerization.
 
 1. Summary of Major Changes
-Version 11 represents a massive leap from a local terminal script to a fully realized, full-stack software application. Over the last 3 weeks, the system was completely overhauled with a modern Flask backend, a highly polished frontend UI, automated zero-billing weather detection, production-ready containerization, and significant hardware upgrades.
+Version 11 represents a massive evolutionary leap for the Tadka Chulha project. Over the past 3 weeks, the system was entirely overhauled, migrating the core 1Hz transient physics engine to a scalable Flask backend, introducing a highly polished, GPU-accelerated frontend UI, automating complex environmental inputs via zero-billing external APIs, and significantly upgrading the ESP32 hardware code.
 
-2. Full-Stack Web Application Overhaul
-- **Frontend Modernization**: Built a sleek, GPU-accelerated web UI featuring Glassmorphism, Dark Mode, smooth scroll optimizations, and mobile-responsive CSS.
-- **Backend API**: Engineered a robust Flask backend (`app.py`) to seamlessly serve the 1Hz transient physics simulation to the frontend UI via AJAX.
-- **Credits & Documentation**: Added Yash Tyagi as Co-Developer alongside Ariyan Pal (Lead) across the UI footer, credits, and README.
+2. Full-Stack Web Application Architecture
+- **Frontend Modernization (`index.html`, `script.js`, `style.css`)**: Built a fully responsive, state-driven wizard interface that entirely replaces the CLI inputs. Implemented a sleek, GPU-accelerated Glassmorphism design system featuring dynamic Dark Mode toggles, transparent cards, and smooth CSS keyframe animations (including a Ken Burns effect on the hero background).
+- **Backend API (`app.py`)**: Engineered a robust Flask backend that securely encapsulates the `main_logic.py` and database systems (`food_db.py`, `pellet_db.py`, `utensil_db.py`). The frontend asynchronously communicates with the `/api/simulate` endpoint to run the intensive 1Hz physics simulation loop and return structured JSON receipts.
+- **Credits & Documentation**: Fully updated the website footer, UI structure, and `README.md` to properly credit Yash Tyagi as Co-Developer alongside Ariyan Pal (Lead).
 
-3. Automated Weather & Wind Integration
-- **Zero-Billing Weather API**: Implemented a server-side `/api/weather` endpoint using the Open-Meteo API. 
-- The system now automatically geo-locates the user and fetches real-time wind speeds and temperatures, bypassing the need for manual data entry while ensuring zero API billing costs forever.
+3. Automated Zero-Billing Weather & Wind Integration
+- **Open-Meteo Server Integration**: Implemented an automated, server-side `/api/weather` endpoint that interfaces with the Open-Meteo API.
+- **Dynamic Physics Mapping**: The backend automatically resolves the user's location via IP (or uses a standard reference), fetches live ambient temperatures, and maps real-time wind speeds directly to the stove's internal convective tiers (e.g., mapping gentle breezes to "Outdoors (Low Wind)"). This allows users to bypass manual environmental data entry completely, while guaranteeing zero API billing costs forever.
 
-4. Hardware LCD & MicroPython Upgrades (`hardware/main.py`)
-- **LCD Menu Refactor**: Completely refactored LCD user prompts, implemented robust error handling, and added overflow checks to guarantee text never exceeds the 16x2 character limits.
-- **Pellet Range Recommendation**: Hardware now calculates and displays a min-max pellet range (`{min}m {base}-{margin}g`) for extreme accuracy on the LCD.
-- **Audio Polish**: Replaced the standard startup tone with a "Tokyo Drift" synth riff boot jingle.
+4. ESP32 Hardware LCD & MicroPython Upgrades (`hardware/main.py`)
+- **LCD Rendering Refactor**: Completely rewrote the `lcd_show` and prompt handling logic. Implemented strict buffer tracking and overflow checks to guarantee that dynamic string formatting never exceeds the strict 16-character limit of 16x2 LCD displays, preventing screen artifacting.
+- **Dynamic Pellet Range Recommendation**: The hardware now dynamically formats and displays an advanced min-max pellet load range (e.g., `56m 721-779g`) directly on the LCD, elegantly bridging the theoretical time-based load with the procurement-margined load while safely respecting the 16-character boundary.
+- **Audio Polish**: Upgraded the standard startup sequence by leveraging PWM duty cycles to play a "Tokyo Drift" synth riff boot jingle on the piezoelectric buzzer.
 
-5. Critical Physics & Translation Hardening
-- **Seamless Background Translation**: Re-engineered Google Translate integration to operate silently without page reloads or intrusive toolbars, enabling infinite bi-directional English/Hindi toggling.
-- **Pressure Cooker Timing Fix**: Fixed a critical logic flaw in `main_logic.py` where the `PRESSURE_POST_BOIL_FACTOR` (0.20) was prematurely slashing kinetic simmering times for open vessels by 80%.
-- **Enhanced Touch Targets**: Enlarged wizard navigation buttons with explicit `z-index: 20` mapping to eliminate touch-delay and overlap failures on mobile screens.
+5. Rigorous UI/UX Refinements & Translation Hardening
+- **Seamless Background Translation**: Re-engineered the Google Translate integration. Used aggressive CSS overrides (`left: -9999px`, `opacity: 0`, `.skiptranslate display: none !important`) to forcefully hide the intrusive Google top banner frame, tooltips, and body-shifting artifacts. Fixed an infinite looping bug by forcing `selectedIndex = 0` (Original Language) on toggle, ensuring translation is instantaneous, entirely silent, and bi-directional.
+- **Enhanced Mobile Touch Targets**: Addressed mobile responsiveness by increasing wizard navigation button (`btn-next`, `btn-prev`) padding to `1.5rem 4rem` with a `64px` minimum height. Mapped explicit `z-index: 20` and `touch-action: manipulation` rules to completely eliminate the standard 300ms touch delay and prevent background overlapping elements from stealing click events.
 
-6. Production Docker Deployment
-- Added a `Dockerfile` and `docker-compose.yml` for lean, 1-click production deployments.
-- Configured Gunicorn with optimized workers and proxy headers for safe mixed-content routing in production.
-- Secured `.gitignore` by removing `node_modules` and lock files for a strictly lean repository footprint.
+6. Critical Physics Engine Bug Fixes (CLI)
+- **Kinetic Simmering Time Fix**: Resolved a severe architectural logic flaw in the terminal CLI (`main_logic.py`) that caused open vessels (like Kadhais) to output impossibly fast cooking times (e.g., calculating 18.8 minutes instead of the correct 34 minutes).
+- **The Core Issue**: The `PRESSURE_POST_BOIL_FACTOR` (0.20), which correctly cuts simmering time by 80% for sealed pressure cookers, was being applied prematurely at Step 1 (Dish Selection) before Step 5 (Utensil Selection). 
+- **The Solution**: Deferred the kinetic time baseline calculation until *after* the user selects their utensil. The CLI now properly inspects `inp["is_pc"]` to ensure the 80% time reduction is strictly applied *only* to pressure cookers, bringing the terminal engine into perfect mathematical harmony with the web backend.
+
+7. Production Docker Deployment & Repository Cleanup
+- **Containerization**: Introduced a lightweight `Dockerfile` utilizing a lean Python base image, paired with a `docker-compose.yml` for effortless 1-click scaling and deployment.
+- **Gunicorn Optimization**: Configured the WSGI entrypoint with optimized worker threading and explicit proxy headers to safely handle mixed-content routing behind production reverse proxies.
+- **Repository Trimming**: Hardened `.gitignore` and purged `node_modules` and unused lock files, drastically reducing the repository footprint for a strictly lean architecture.
 
 ========================================================================
 
