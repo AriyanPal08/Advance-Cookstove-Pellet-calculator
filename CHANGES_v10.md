@@ -1,8 +1,37 @@
-changes V11 coming soon 
-this major calculation will include all the major overamp in the system
+Biomass Cookstove Pellet Calculator — v11 Change Documentation
 
+Version: 11.0
 
+Scope: Complete transition to a Production-Ready Web Application, Automated Environmental APIs, Hardware UI Refinements, and Docker Containerization.
 
+1. Summary of Major Changes
+Version 11 represents a massive leap from a local terminal script to a fully realized, full-stack software application. Over the last 3 weeks, the system was completely overhauled with a modern Flask backend, a highly polished frontend UI, automated zero-billing weather detection, production-ready containerization, and significant hardware upgrades.
+
+2. Full-Stack Web Application Overhaul
+- **Frontend Modernization**: Built a sleek, GPU-accelerated web UI featuring Glassmorphism, Dark Mode, smooth scroll optimizations, and mobile-responsive CSS.
+- **Backend API**: Engineered a robust Flask backend (`app.py`) to seamlessly serve the 1Hz transient physics simulation to the frontend UI via AJAX.
+- **Credits & Documentation**: Added Yash Tyagi as Co-Developer alongside Ariyan Pal (Lead) across the UI footer, credits, and README.
+
+3. Automated Weather & Wind Integration
+- **Zero-Billing Weather API**: Implemented a server-side `/api/weather` endpoint using the Open-Meteo API. 
+- The system now automatically geo-locates the user and fetches real-time wind speeds and temperatures, bypassing the need for manual data entry while ensuring zero API billing costs forever.
+
+4. Hardware LCD & MicroPython Upgrades (`hardware/main.py`)
+- **LCD Menu Refactor**: Completely refactored LCD user prompts, implemented robust error handling, and added overflow checks to guarantee text never exceeds the 16x2 character limits.
+- **Pellet Range Recommendation**: Hardware now calculates and displays a min-max pellet range (`{min}m {base}-{margin}g`) for extreme accuracy on the LCD.
+- **Audio Polish**: Replaced the standard startup tone with a "Tokyo Drift" synth riff boot jingle.
+
+5. Critical Physics & Translation Hardening
+- **Seamless Background Translation**: Re-engineered Google Translate integration to operate silently without page reloads or intrusive toolbars, enabling infinite bi-directional English/Hindi toggling.
+- **Pressure Cooker Timing Fix**: Fixed a critical logic flaw in `main_logic.py` where the `PRESSURE_POST_BOIL_FACTOR` (0.20) was prematurely slashing kinetic simmering times for open vessels by 80%.
+- **Enhanced Touch Targets**: Enlarged wizard navigation buttons with explicit `z-index: 20` mapping to eliminate touch-delay and overlap failures on mobile screens.
+
+6. Production Docker Deployment
+- Added a `Dockerfile` and `docker-compose.yml` for lean, 1-click production deployments.
+- Configured Gunicorn with optimized workers and proxy headers for safe mixed-content routing in production.
+- Secured `.gitignore` by removing `node_modules` and lock files for a strictly lean repository footprint.
+
+========================================================================
 
 Biomass Cookstove Pellet Calculator — v10 Change Documentation
 
