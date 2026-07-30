@@ -157,7 +157,7 @@ def _build_inputs(data):
                 kinetic_time_s += stage.duration_s
         inp["t_kinetic_base_s"] = kinetic_time_s
 
-    inp["m_pot"] = float(data.get("m_pot", utensil.mass_kg))
+    inp["m_pot"] = float(data.get("m_pot", utensil.empty_mass_kg))
 
     # Lid
     if inp["is_pc"]:
@@ -194,6 +194,7 @@ def _build_inputs(data):
         t_kinetic_s=inp["t_kinetic_base_s"],
         P_in_kw=P_in_kw,
         A_m2=inp["A_m2"],
+        A_top=inp["A_top"],
         k_conv=k_conv,
         emissivity=inp["emissivity"],
         T_amb=T_amb,
