@@ -75,7 +75,9 @@ class DishProfile:
                  cp_food_kj_kgk, stages, category,
                  variable_water=False,
                  qty_prompt="", qty_unit="", qty_is_float=False,
-                 qty_min=1.0, qty_max=50.0, qty_default=4.0):
+                 qty_min=1.0, qty_max=50.0, qty_default=4.0,
+                 allowed_utensils=None, recommended_utensils=None, forbidden_utensils=None,
+                 max_fill_ratio=0.85):
         self.name = name
         self.food_mass_per_serving_kg = food_mass_per_serving_kg
         self.added_water_per_serving_kg = added_water_per_serving_kg
@@ -90,6 +92,10 @@ class DishProfile:
         self.qty_min = qty_min
         self.qty_max = qty_max
         self.qty_default = qty_default
+        self.allowed_utensils = allowed_utensils or ["CYLINDER", "PRESSURE_COOKER", "KADHAI"]
+        self.recommended_utensils = recommended_utensils or ["CYLINDER"]
+        self.forbidden_utensils = forbidden_utensils or ["TAWA"]
+        self.max_fill_ratio = max_fill_ratio
 
     def total_food_mass_kg(self, n):
         return self.food_mass_per_serving_kg * n
@@ -147,6 +153,10 @@ FOOD_DB = {
             CookingStage("Starch Gelatinization", "kinetic", 600),
         ),
         category="Staple Grain",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── DAL TADKA ────────────────────────────────────────────────────────────
@@ -166,6 +176,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 900),
         ),
         category="Lentil Dish",
+        allowed_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        recommended_utensils=["PRESSURE_COOKER"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.6
     ),
 
     # ── CHICKEN CURRY ────────────────────────────────────────────────────────
@@ -184,6 +198,10 @@ FOOD_DB = {
             CookingStage("Collagen Conversion", "kinetic", 1200),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── ROTI (per single roti — v10 Smart Units) ────────────────────────────
@@ -203,6 +221,10 @@ FOOD_DB = {
         qty_min=2.0,
         qty_max=30.0,
         qty_default=4.0,
+        allowed_utensils=["TAWA"],
+        recommended_utensils=["TAWA"],
+        forbidden_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        max_fill_ratio=0.1
     ),
 
     # ── TEA (CHAI) ───────────────────────────────────────────────────────────
@@ -217,6 +239,10 @@ FOOD_DB = {
             CookingStage("Extraction", "kinetic", 300),
         ),
         category="Beverage",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── SAMBAR ───────────────────────────────────────────────────────────────
@@ -234,6 +260,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 720),
         ),
         category="Lentil-Vegetable Stew",
+        allowed_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        recommended_utensils=["PRESSURE_COOKER"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.6
     ),
 
     # ── COFFEE ───────────────────────────────────────────────────────────────
@@ -248,6 +278,10 @@ FOOD_DB = {
             CookingStage("Extraction", "kinetic", 300),
         ),
         category="Beverage",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── MIX VEG CURRY ────────────────────────────────────────────────────────
@@ -267,6 +301,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 900),
         ),
         category="Vegetable Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── EGG CURRY ────────────────────────────────────────────────────────────
@@ -286,6 +324,10 @@ FOOD_DB = {
             CookingStage("Protein Denaturation", "kinetic", 900),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── PLAIN WATER BOILING (variable_water=True) ────────────────────────────
@@ -300,6 +342,10 @@ FOOD_DB = {
         ),
         category="Utility / WBT Reference",
         variable_water=True,
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── CHOLA (SOAKED CHICKPEA) ──────────────────────────────────────────────
@@ -315,6 +361,10 @@ FOOD_DB = {
             CookingStage("Boiling & Softening", "kinetic", 2400),
         ),
         category="Legume (Soaked)",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── RAJMA (SOAKED RED KIDNEY BEAN) ───────────────────────────────────────
@@ -330,6 +380,10 @@ FOOD_DB = {
             CookingStage("Boiling & Softening", "kinetic", 2700),
         ),
         category="Legume (Soaked)",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── KADHAI PANEER ────────────────────────────────────────────────────────
@@ -345,6 +399,10 @@ FOOD_DB = {
             CookingStage("Gravy & Paneer Simmering", "kinetic", 900),
         ),
         category="Paneer Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── ALOO GOBI ────────────────────────────────────────────────────────────
@@ -364,6 +422,10 @@ FOOD_DB = {
             CookingStage("Softening (Pectin)", "kinetic", 720),
         ),
         category="Vegetable Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── ALOO MATAR ───────────────────────────────────────────────────────────
@@ -383,6 +445,10 @@ FOOD_DB = {
             CookingStage("Softening (Pectin)", "kinetic", 600),
         ),
         category="Vegetable Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── DAL FRY (Masoor/Moong Dal) ───────────────────────────────────────────
@@ -402,6 +468,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 600),
         ),
         category="Lentil Dish",
+        allowed_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        recommended_utensils=["PRESSURE_COOKER"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.6
     ),
 
     # ── FISH CURRY ───────────────────────────────────────────────────────────
@@ -422,6 +492,10 @@ FOOD_DB = {
             CookingStage("Protein Denaturation", "kinetic", 480),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── PANEER BUTTER MASALA ─────────────────────────────────────────────────
@@ -440,6 +514,10 @@ FOOD_DB = {
             CookingStage("Gravy Simmering", "kinetic", 900),
         ),
         category="Paneer Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── KHICHDI ───────────────────────────────────────────────────────────────
@@ -456,6 +534,10 @@ FOOD_DB = {
             CookingStage("Gelatinization", "kinetic", 600),
         ),
         category="Staple Grain",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── POHA ─────────────────────────────────────────────────────────────────
@@ -474,6 +556,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 180),
         ),
         category="Snack / Breakfast",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── UPMA (Semolina) ──────────────────────────────────────────────────────
@@ -492,6 +578,10 @@ FOOD_DB = {
             CookingStage("Gelatinization", "kinetic", 300),
         ),
         category="Snack / Breakfast",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── MAGGI / INSTANT NOODLES ──────────────────────────────────────────────
@@ -509,6 +599,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 180),
         ),
         category="Snack / Breakfast",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── BOILING MILK (v10 dry-solids model) ──────────────────────────────────
@@ -544,6 +638,10 @@ FOOD_DB = {
         qty_min=0.5,
         qty_max=10.0,
         qty_default=1.0,
+        allowed_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        recommended_utensils=["CYLINDER"],
+        forbidden_utensils=["TAWA", "PRESSURE_COOKER"],
+        max_fill_ratio=0.5
     ),
 
     # ===========================================================================
@@ -580,6 +678,10 @@ FOOD_DB = {
             CookingStage("Cream Gravy Simmering", "kinetic", 1080),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── CHICKEN TIKKA MASALA ─────────────────────────────────────────────────
@@ -603,6 +705,10 @@ FOOD_DB = {
             CookingStage("Gravy Simmering", "kinetic", 900),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── MUTTON CURRY (Goat) ──────────────────────────────────────────────────
@@ -627,6 +733,10 @@ FOOD_DB = {
             CookingStage("Collagen Conversion", "kinetic", 2400),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── PRAWN CURRY ──────────────────────────────────────────────────────────
@@ -649,6 +759,10 @@ FOOD_DB = {
             CookingStage("Protein Denaturation", "kinetic", 180),
         ),
         category="Non-Veg Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── PALAK PANEER ─────────────────────────────────────────────────────────
@@ -671,6 +785,10 @@ FOOD_DB = {
             CookingStage("Gravy & Paneer Simmering", "kinetic", 600),
         ),
         category="Paneer Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── MATAR PANEER ─────────────────────────────────────────────────────────
@@ -692,6 +810,10 @@ FOOD_DB = {
             CookingStage("Gravy & Paneer Simmering", "kinetic", 720),
         ),
         category="Paneer Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── CHANA MASALA (Boiled Chickpea) ───────────────────────────────────────
@@ -716,6 +838,10 @@ FOOD_DB = {
             CookingStage("Masala Simmering", "kinetic", 900),
         ),
         category="Legume (Boiled)",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── MOONG DAL (Plain) ────────────────────────────────────────────────────
@@ -737,6 +863,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 420),
         ),
         category="Lentil Dish",
+        allowed_utensils=["CYLINDER", "PRESSURE_COOKER", "KADHAI"],
+        recommended_utensils=["PRESSURE_COOKER"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.6
     ),
 
     # ── METHI MALAI MATAR ────────────────────────────────────────────────────
@@ -758,6 +888,10 @@ FOOD_DB = {
             CookingStage("Cream Gravy Simmering", "kinetic", 600),
         ),
         category="Vegetable Curry",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── CABBAGE SABZI (Patta Gobi) ───────────────────────────────────────────
@@ -778,6 +912,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 300),
         ),
         category="Dry Vegetable (Sabzi)",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── BHINDI MASALA (Okra) ─────────────────────────────────────────────────
@@ -797,6 +935,10 @@ FOOD_DB = {
             CookingStage("Softening", "kinetic", 240),
         ),
         category="Dry Vegetable (Sabzi)",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── JEERA RICE ───────────────────────────────────────────────────────────
@@ -817,6 +959,10 @@ FOOD_DB = {
             CookingStage("Starch Gelatinization", "kinetic", 600),
         ),
         category="Staple Grain",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 
     # ── VEGETABLE PULAO ──────────────────────────────────────────────────────
@@ -840,6 +986,10 @@ FOOD_DB = {
             CookingStage("Starch Gelatinization", "kinetic", 600),
         ),
         category="Staple Grain",
+        allowed_utensils=["CYLINDER", "KADHAI", "PRESSURE_COOKER"],
+        recommended_utensils=["KADHAI"],
+        forbidden_utensils=["TAWA"],
+        max_fill_ratio=0.8
     ),
 }
 

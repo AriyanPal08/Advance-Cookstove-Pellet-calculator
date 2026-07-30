@@ -718,7 +718,7 @@ def run_simulation(inp):
     preview = main_logic.estimate_cook_time(
         m_food=inp["m_food"], cp_food=inp["cp_food"], m_water=inp["m_water_initial"],
         m_pot=inp["m_pot"], cp_pot=inp["cp_pot"], t_kinetic_s=inp["t_kinetic_base_s"],
-        P_in_kw=P_in_kw, A_m2=inp["A_m2"], k_conv=inp["k_conv_current"],
+        P_in_kw=P_in_kw, A_m2=inp["A_m2"], A_top=inp["A_top"], k_conv=inp["k_conv_current"],
         emissivity=inp["emissivity"], T_amb=inp["t_ambient_c"], lid_fac=inp["lid_factor"]
     )
 

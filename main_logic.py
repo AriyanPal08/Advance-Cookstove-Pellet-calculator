@@ -1,3 +1,6 @@
+from __future__ import annotations
+import math
+import math
 """
 main_logic.py
 1Hz Discrete Transient Biomass Cookstove Simulator  — Version 5
@@ -144,7 +147,6 @@ SOURCES
 [5] Choi & Okos (1986); ICMR-NIN (2017). [food_db.py Cp_food sourcing]
 """
 
-from __future__ import annotations
 
 import math
 import sys
@@ -153,7 +155,9 @@ from pathlib import Path
 
 from food_db    import FOOD_DB, DishProfile, get_dish_names
 from pellet_db  import PELLET_DB, PelletType, get_pellet_names
-from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil
+from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil, GeometryType
+
+
 
 # =============================================================================
 # SECTION 3 — IMMOVABLE PHYSICAL CONSTANTS  (unchanged from v1)
@@ -164,40 +168,32 @@ from utensil_db import UTENSIL_DB, Utensil, get_utensil_names, get_utensil
 # There is no closed-loop or variable-rate pellet control in this stove.
 # A procurement margin (5–12%) is applied on top to account for real-world
 # variability in pellet quality, feed consistency, and measurement uncertainty.
-FAN_HIGH:    float = 0.78     # kg/hr  — experimentally measured pellet feed rate at HIGH fan
-MAX_EFFICIENCY: float = 0.45  # —       maximum combustion efficiency
-L_V:         float = 2257.0   # kJ/kg  — latent heat of vaporisation at 100°C
-SIGMA:       float = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
-dt:          float = 1.0      # s      — simulation time step (1 Hz)
-EMISSIVITY_DEFAULT: float = 0.35  # — oxidised aluminium [Incropera Table 7.1]
-# Note: K_CONV_STILL_AIR is REMOVED from the hardcoded constants in v3.
-# It is now set dynamically per-session as inp["k_conv_current"] from the
-# Wind Factor menu below (still air = 10.0 W/m²K is preserved as option [1]).
+# Constants are now imported from physics_constants.py and calibration.py
 
-# Additional sourced constants
-CP_WATER:    float = 4.184    # kJ/kg·K — specific heat of water (NIST, ~60°C)
+"""
+physics_constants.py
+IIT Delhi · Biomass Pellet Cookstove Simulator
 
-# ============================================================
-# PRESSURE COOKER POST-BOIL CORRECTION
-# ============================================================
-# Applied ONLY when the selected utensil is a pressure cooker
-# (is_pc = True). Open-pot kinetic durations are unmodified.
-#
-# Derivation (Theoretical Arrhenius equation & Experimental alignment):
-#   - Starch gelatinization activation energy (Ea) ~100 kJ/mol
-#     (Spies & Hoseney, 1982; Lund & Wirakartakusumah, 1984).
-#   - At 120°C (sealed PC, ~15 psi gauge, 393.15 K) vs 100°C (373.15 K):
-#     Rate ratio = exp[(100000/8.314) × (1/373.15 − 1/393.15)] = 5.15.
-#   - Since the reaction is 5.15× faster, the required kinetic time
-#     is reduced to 1/5.15 ≈ 0.194 of the open pot time.
-#   - This 0.20 factor correctly brings the 2L PC Rice (4 pax) cook
-#     time down to ~13.5 min, satisfying the experimental constraint
-#     of < 14 min (prevents bottom burning at 16 min).
-PRESSURE_POST_BOIL_FACTOR = 0.20
+Contains only universal physical constants and peer-reviewed engineering references.
+NO experimentally calibrated stove parameters belong here.
+"""
 
-# Wind Factor tiers — convection coefficient h (W/m²·K)  [source: 3]
-# Selected once per session into inp["k_conv_current"]; used in both the
-# Total Time Estimator and the live 1Hz loop's Step 2C convection term.
+# =============================================================================
+# UNIVERSAL PHYSICAL CONSTANTS
+# =============================================================================
+# Source: Universal physics
+SIGMA: float = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
+
+# Source: IAPWS / NIST Chemistry WebBook
+CP_WATER: float = 4.184       # kJ/kg·K — Specific heat of liquid water (~60°C)
+L_V: float = 2257.0     # kJ/kg   — Latent heat of vaporization of water (1 atm)
+BOILING_POINT_WATER: float = 100.0  # °C  — Nominal boiling point at 1 atm
+
+# =============================================================================
+# PEER-REVIEWED LITERATURE CONSTANTS
+# =============================================================================
+# Source: Incropera, DeWitt, Bergman & Lavine (Fundamentals of Heat and Mass Transfer, 7th/8th Ed.)
+# Representative convective heat-transfer coefficients (h) for indoor still-air through forced-convection conditions.
 WIND_TIERS: dict[str, float] = {
     "Indoors / Still Air":        10.0,
     "Outdoors (Low Wind)":        20.0,
@@ -205,13 +201,104 @@ WIND_TIERS: dict[str, float] = {
     "Outdoors (High Wind)":       50.0,
 }
 
-# Safety thresholds
-T_OVERHEAT_C: float = 150.0   # °C — critical vessel overheat threshold
-M_WATER_DRY:  float = 0.0     # kg — dry-boil threshold
+# Material Emissivities (Oxidized / Typical usage states)
+# Source: Incropera et al. Table A.11 / NIST
+EMISSIVITY_ALUMINUM_OXIDIZED: float = 0.35
+EMISSIVITY_CAST_IRON: float = 0.65
+EMISSIVITY_STAINLESS_STEEL: float = 0.50
 
-# Lid factors  [WBT v4.2.3, source: 4]
-LID_FACTOR_ON:  float = 0.15
-LID_FACTOR_OFF: float = 1.00
+"""
+calibration.py
+IIT Delhi · Biomass Pellet Cookstove Simulator
+
+Contains ONLY parameters experimentally calibrated specifically for the 
+Tadka Chulha biomass pellet cookstove used by IIT Delhi for research purposes.
+"""
+
+# =============================================================================
+# EXPERIMENTALLY CALIBRATED PARAMETERS
+# =============================================================================
+
+# OVERALL STOVE THERMAL EFFICIENCY
+# Source: Published experimental WBT measurements on the Tadka Chulha.
+# Justification: Represents the overall thermal efficiency of the complete stove. 
+# Intentionally combines combustion efficiency, flame interception, thermal transfer, 
+# and unavoidable losses into a single experimentally validated engineering parameter.
+STOVE_THERMAL_EFFICIENCY: float = 0.47
+
+# PRESSURE COOKER KINETIC REDUCTION FACTOR
+# Source: IIT Delhi experimental cook times combined with theoretical Arrhenius Equation 
+# (120°C vs 100°C for starch gelatinization).
+# Justification: Brings simulated 2L PC Rice (4 pax) cook time down to experimentally 
+# validated limits (~13.5 min) without breaking physics.
+PRESSURE_POST_BOIL_FACTOR: float = 0.20
+
+# LID EVAPORATION ESCAPE COEFFICIENT (Covered, Unsealed Pot)
+# Source: Calibrated to WBT 4.2.3 covered-pot metrics.
+# Justification: Represents the fractional area or escape rate of steam when a standard lid is placed on a pot.
+LID_ESCAPE_COEFFICIENT_ON: float = 0.15
+
+# MECHANICAL FEED LIMIT
+# Source: Tadka Chulha blower / auger maximum feed rate.
+FAN_HIGH: float = 0.78  # kg/hr
+
+"""
+validation_data.py
+IIT Delhi · Biomass Pellet Cookstove Simulator
+
+This module stores experimental datasets (like Water Boiling Tests) 
+for the built-in validation framework. It separates experimental 
+ground-truth data from the simulator physics engine.
+"""
+
+from typing import TypedDict, Optional
+
+class ValidationDataPoint(TypedDict):
+    test_name: str
+    dish_name: str
+    utensil_name: str
+    mass_kg: float
+    wind_tier: str
+    ambient_temp_c: float
+    lid_factor_name: str  # "Lid On" or "Lid Off"
+    experimental_time_s: float
+    experimental_pellets_g: Optional[float]
+    confidence: str
+    notes: str
+
+# Ground truth datasets from IIT Delhi Tadka Chulha experiments
+EXPERIMENTAL_DATASETS: list[ValidationDataPoint] = [
+    {
+        "test_name": "WBT 5L Pot - Lid Off",
+        "dish_name": "Water",
+        "utensil_name": "Aluminium Pot 8L",
+        "mass_kg": 5.0,
+        "wind_tier": "Indoors / Still Air",
+        "ambient_temp_c": 25.0,
+        "lid_factor_name": "Lid Off",
+        "experimental_time_s": 1080.0,  # 18.0 minutes
+        "experimental_pellets_g": 234.0, 
+        "confidence": "High",
+        "notes": "Standard 5L Water Boiling Test, ambient 25C."
+    },
+    {
+        "test_name": "Rice 2L PC (4 pax) - Lid On",
+        "dish_name": "White Rice (Boiled)",
+        "utensil_name": "Pressure Cooker 2L",
+        "mass_kg": 1.0, # Approximate food+water
+        "wind_tier": "Indoors / Still Air",
+        "ambient_temp_c": 25.0,
+        "lid_factor_name": "Lid On",
+        "experimental_time_s": 810.0, # ~13.5 minutes
+        "experimental_pellets_g": None,
+        "confidence": "Medium",
+        "notes": "Experimental threshold < 14 min to prevent burning."
+    },
+]
+
+dt: float = 1.0      # s      — simulation time step (1 Hz)
+T_OVERHEAT_C: float = 150.0   # °C — critical vessel overheat threshold
+M_WATER_DRY: float = 0.0     # kg — dry-boil threshold
 
 # Loop safety cap (prevents infinite loop on pathological inputs)
 MAX_SIMULATION_TIME: float = 6 * 3600.0  # 6 hours in seconds
@@ -224,21 +311,7 @@ PELLET_PROCUREMENT_MARGIN: float = 0.08  # 8 %
 # =============================================================================
 
 def _emissivity_for_utensil(utensil: Utensil) -> float:
-    """Material-aware surface emissivity [Incropera Table 7.1]."""
-    if utensil.cp_kj_kgk < 0.55:
-        return 0.55   # cast iron / tawa
-    if utensil.is_pressure:
-        return 0.32   # polished Al body, minimal oxidation
-    return EMISSIVITY_DEFAULT
-
-
-def _geometry_profile(utensil_name: str) -> tuple[float, float]:
-    """Return (height/diameter ratio, surface-area multiplier) for utensil type."""
-    if "Kadhai" in utensil_name or "Wok" in utensil_name:
-        return 0.45, 1.12
-    if "Tawa" in utensil_name or "Pan" in utensil_name:
-        return 0.28, 1.30
-    return 0.65, 1.00
+    return utensil.emissivity
 
 
 def compute_vessel_geometry(
@@ -247,48 +320,79 @@ def compute_vessel_geometry(
     lid_factor: float,
     m_food_kg: float = 0.0,
 ) -> dict[str, float]:
-    """
-    Reverse-engineer pot dimensions from water mass.
-    Cylinder model: V = π·r²·h with utensil-specific h/d ratio.
-    Exposed loss area = side wall + partial top (bottom insulated by stove).
-
-    m_food_kg: total food mass (excluding water). Used to detect liquid-heavy
-    loads where added water is very low but the pot is full of food — in those
-    cases the water-volume proxy under-estimates flame coupling (eta_geom),
-    so a small conservative correction is applied (see below).
-    """
+    utensil = get_utensil(utensil_name)
+    r_inner = utensil.get_inner_radius()
+    h_total = utensil.get_total_height()
+    
+    # Calculate exact water volume
     V_m3 = m_water_kg / 1000.0
-    h_over_d, surface_mult = _geometry_profile(utensil_name)
-    d_m = (4.0 * V_m3 / (math.pi * h_over_d)) ** (1.0 / 3.0)
-    h_m = h_over_d * d_m
-    r_m = d_m / 2.0
-    A_side = math.pi * d_m * h_m
-    A_top  = math.pi * r_m ** 2
-    top_exposure = 0.30 if lid_factor <= LID_FACTOR_ON else 0.85
-    A_m2 = surface_mult * (A_side + top_exposure * A_top)
-    # eta_geom scaling — Calibrated to WBT 5L
-    #   Using a reference mass of 5.0 kg and an exponent of 0.20,
-    #   the stove reaches its max thermal efficiency at 5L load.
-    #   This was explicitly matched to the IIT Delhi WBT where 5L water
-    #   in an 8L pot (lid off) boiled in exactly 18 minutes.
-    eta_geom = MAX_EFFICIENCY * max(0.38, min(1.0, (m_water_kg / 5.0) ** 0.20))
+    
+    if utensil.geometry_type in (GeometryType.CYLINDER, GeometryType.PRESSURE_COOKER):
+        h_fill = V_m3 / (math.pi * (r_inner ** 2))
+        A_bottom = math.pi * (r_inner ** 2)
+        A_side_wetted = 2 * math.pi * r_inner * h_fill
+        A_side_dry = 2 * math.pi * r_inner * max(0.0, h_total - h_fill)
+        A_top = A_bottom
+    elif utensil.geometry_type == GeometryType.KADHAI:
+        # Exact spherical cap derivation using Newton-Raphson
+        # For a standard Kadhai, we approximate it as a spherical segment where R approx r_inner
+        R = r_inner
+        h_fill = R / 2.0
+        for _ in range(15):
+            f = (math.pi / 3.0) * (h_fill**2) * (3*R - h_fill) - V_m3
+            f_prime = math.pi * h_fill * (2*R - h_fill)
+            if abs(f_prime) < 1e-9: break
+            h_new = h_fill - f/f_prime
+            if abs(h_new - h_fill) < 1e-6: break
+            h_fill = h_new
+        h_fill = max(0.0, min(h_total, h_fill))
+        A_bottom = 0.0 # Sphere tip
+        A_side_wetted = 2 * math.pi * R * h_fill
+        A_side_dry = 2 * math.pi * R * max(0.0, h_total - h_fill)
+        A_top = math.pi * r_inner ** 2
+    else: # TAWA
+        h_fill = 0.0
+        A_bottom = math.pi * (r_inner ** 2)
+        A_side_wetted = 0.0
+        A_side_dry = 0.0
+        A_top = A_bottom
+        
+    # Active firing assumption: Bottom is insulated by the combustion zone flame
+    A_bottom_loss = 0.0 
+    
+    # Lid exposure handling
+    # The physical envelope of the pot does not shrink when a lid is placed.
+    # The hot lid radiates and convects exactly like the exposed surface.
+    # Therefore, A_top is always fully included in the macroscopic heat loss area.
+    A_top_loss = A_top
+    
+    # Total effective heat loss area
+    A_m2 = A_side_wetted + A_side_dry + A_top_loss + A_bottom_loss
+    
+    return {"V_m3": V_m3, "d_m": r_inner * 2, "h_m": h_fill, "A_m2": A_m2, "A_top": A_top, "eta_geom": STOVE_THERMAL_EFFICIENCY}
 
-    # ── Liquid-heavy load correction ──────────────────────────────────────────
-    # Physical motivation: dishes like dal, curry, and stews have significant
-    # thermal mass (food solids + absorbed moisture) but very little free
-    # added water (m_water_kg < 0.3 kg). The water-volume proxy used above
-    # under-estimates the effective pot fill and therefore the flame-coupling
-    # efficiency. When the total thermal mass (food + water) is significant
-    # (> 1.5 kg) but added water is very low, we apply a small proportional
-    # upward correction to eta_geom (max +0.08, never exceeds MAX_EFFICIENCY).
-    total_mass = m_water_kg + m_food_kg
-    if m_water_kg < 0.3 and total_mass > 1.5:
-        correction = min(0.08, 0.08 * (total_mass - 1.5) / 3.0)
-        eta_geom = min(MAX_EFFICIENCY, eta_geom + correction)
-    # ─────────────────────────────────────────────────────────────────────────
 
-    return {"V_m3": V_m3, "d_m": d_m, "h_m": h_m, "A_m2": A_m2, "eta_geom": eta_geom}
 
+def evaporation_loss_w(T_pot_c: float, T_amb_c: float, A_evap_m2: float, k_conv: float) -> float:
+    """
+    Mass-transfer analogy for pre-boil evaporation (Chilton-Colburn J-factor).
+    h_m = h_c / (rho_air * Cp_air * Le^(2/3))
+    """
+    if A_evap_m2 <= 0.0 or T_pot_c <= T_amb_c:
+        return 0.0
+    
+    h_m = k_conv / 1200.0  # approximate (rho*Cp) for air
+    
+    # Tetens equation for vapor pressure (Pa)
+    import math
+    P_sat_pot = 610.78 * math.exp(17.27 * T_pot_c / (T_pot_c + 237.3))
+    P_sat_amb = 610.78 * math.exp(17.27 * T_amb_c / (T_amb_c + 237.3)) * 0.50 # 50% RH
+    
+    rho_v_pot = P_sat_pot * 0.018 / (8.314 * (T_pot_c + 273.15))
+    rho_v_amb = P_sat_amb * 0.018 / (8.314 * (T_amb_c + 273.15))
+    
+    m_evap_rate_kg_s = h_m * A_evap_m2 * max(0.0, rho_v_pot - rho_v_amb)
+    return m_evap_rate_kg_s * (L_V * 1000.0)
 
 def heat_loss_w(
     T_pot_c: float,
@@ -296,13 +400,13 @@ def heat_loss_w(
     A_m2: float,
     k_conv: float,
     emissivity: float,
-    lid_factor: float = LID_FACTOR_OFF,
+    lid_factor: float = 1.0,
 ) -> float:
-    """Total convective + radiative heat bleed (W). Used by estimator and loop."""
+    """Total convective + radiative heat bleed (W)."""
     T_pot_K = T_pot_c + 273.15
     T_amb_K = T_amb_c + 273.15
-    conv_factor = 0.85 + 0.15 * lid_factor
-    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K) * conv_factor
+    # Empirical lid multiplier removed. Physical envelope dictates loss.
+    P_conv = k_conv * A_m2 * (T_pot_K - T_amb_K)
     P_rad  = emissivity * SIGMA * A_m2 * (T_pot_K ** 4 - T_amb_K ** 4)
     return P_conv + P_rad
 
@@ -313,7 +417,7 @@ def heat_loss_kw(
     A_m2: float,
     k_conv: float,
     emissivity: float,
-    lid_factor: float = LID_FACTOR_OFF,
+    lid_factor: float = 1.0,
 ) -> float:
     """Heat bleed in kW (convenience wrapper)."""
     return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity, lid_factor) / 1000.0
@@ -349,19 +453,30 @@ def _transient_preview_tick(
     cp_pot: float,
     P_in_kw: float,
     A_m2: float,
+    A_top: float,
     k_conv: float,
     emissivity: float,
     T_amb: float,
     lid_fac: float,
 ) -> tuple[float, float, float]:
-    """
-    Execute one 1 Hz physics tick (Steps 2A–2D).
-    Returns (T_pot_new, m_water_new, Q_out_kj).
-    Routing logic is identical to run_1hz_loop Step 2D.
-    """
+    """Execute one 1 Hz physics tick (Steps 2A–2D)."""
     Q_in  = P_in_kw * dt
     MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
-    Q_out = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity, lid_fac) * dt
+    
+    Q_out_dry = heat_loss_kw(T_pot, T_amb, A_m2, k_conv, emissivity, lid_fac) * dt
+    
+    # Physically-justified pre-boil evaporation (driven by mass transfer)
+    m_evap_pre_boil = 0.0
+    P_evap_pre_boil = 0.0
+    if T_pot < 100.0 and m_water > 0.0:
+        P_evap_pre_boil = evaporation_loss_w(T_pot, T_amb, A_top * lid_fac, k_conv) / 1000.0
+        m_evap_pre_boil = (P_evap_pre_boil * dt) / L_V
+        if m_evap_pre_boil > m_water:
+            m_evap_pre_boil = m_water
+            P_evap_pre_boil = (m_evap_pre_boil * L_V) / dt
+        m_water -= m_evap_pre_boil
+
+    Q_out = Q_out_dry + P_evap_pre_boil * dt
     Q_avail = Q_in - Q_out
 
     if Q_avail <= 0.0:
@@ -378,12 +493,13 @@ def _transient_preview_tick(
                 Q_avail -= Q_to_100
 
         if Q_avail > 0 and m_water > 0:
-            m_evap_potential = (Q_avail / L_V) * lid_fac
-            if m_evap_potential <= m_water:
-                m_water -= m_evap_potential
-                Q_avail  = 0.0
+            # Active boiling heat transfer completely dominates mass transfer
+            m_evap_boil = (Q_avail / L_V) if lid_fac > 0.0 else 0.0
+            if m_evap_boil <= m_water:
+                m_water -= m_evap_boil
+                Q_avail -= (m_evap_boil * L_V)
             else:
-                Q_boil  = (m_water / lid_fac) * L_V
+                Q_boil = m_water * L_V
                 m_water = 0.0
                 Q_avail -= Q_boil
 
@@ -405,6 +521,7 @@ def estimate_cook_time(
     t_kinetic_s: float,
     P_in_kw: float,
     A_m2: float,
+    A_top: float,
     k_conv: float,
     emissivity: float,
     T_amb: float,
@@ -425,7 +542,7 @@ def estimate_cook_time(
         T_prev = T_pot
         T_pot, m_w, Q_out = _transient_preview_tick(
             T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
-            P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
+            P_in_kw, A_m2, A_top, k_conv, emissivity, T_amb, lid_fac,
         )
         if T_pot <= T_prev and T_pot < 100.0:
             heat_cannot_rise = True
@@ -444,7 +561,7 @@ def estimate_cook_time(
                 break
             T_pot, m_w, Q_out = _transient_preview_tick(
                 T_pot, m_w, m_food, cp_food, m_pot, cp_pot,
-                P_in_kw, A_m2, k_conv, emissivity, T_amb, lid_fac,
+                P_in_kw, A_m2, A_top, k_conv, emissivity, T_amb, lid_fac,
             )
             t_elapsed += dt
             Q_out_accum += Q_out
@@ -654,8 +771,29 @@ def collect_inputs() -> dict:
 
     # ── Step 5: Utensil selection  (silent Cp lookup + mass OVERRIDE) ────────
     utensil_names = get_utensil_names()
-    u_idx = _menu("Step 5 / 7  —  Utensil Selection", utensil_names)
-    utensil: Utensil = get_utensil(utensil_names[u_idx])
+    while True:
+        u_idx = _menu("Step 5 / 7  —  Utensil Selection", utensil_names)
+        utensil: Utensil = get_utensil(utensil_names[u_idx])
+        geom_str = utensil.geometry_type.name
+        
+        # Validation 1: Forbidden Utensils
+        if geom_str in dish.forbidden_utensils:
+            print(f"\n\033[91m[WARNING] {dish.name} cannot be cooked in a {geom_str} ({utensil.name}). Please select a different utensil.\033[0m")
+            continue
+            
+        # Validation 2: Fill Capacity
+        total_vol_l = inp["m_water_initial"] + inp.get("m_food", 0.0)
+        effective_max_ratio = min(utensil.maximum_fill_ratio, getattr(dish, 'max_fill_ratio', 0.85))
+        max_allowed_vol_l = utensil.capacity_l * effective_max_ratio
+        
+        if total_vol_l > max_allowed_vol_l:
+            print(f"\n\033[91m[WARNING] The {utensil.name} is too small for this batch size!\033[0m")
+            print(f"\033[91mTotal recipe volume (~{total_vol_l:.1f}L) exceeds the maximum safe fill limit ({max_allowed_vol_l:.1f}L).\033[0m")
+            print(f"\033[91mPlease select a larger utensil.\033[0m")
+            continue
+            
+        break
+        
     inp["utensil_name"] = utensil.name
     inp["cp_pot"]        = utensil.cp_kj_kgk   # silent assignment (unchanged)
     inp["is_pc"]         = utensil.is_pressure
@@ -664,9 +802,9 @@ def collect_inputs() -> dict:
     # Database default mass is shown; user may accept it or type a precise
     # measured value for their actual vessel.
     inp["m_pot"] = _prompt_float(
-        f"Press Enter to accept [{utensil.mass_kg}] kg, "
+        f"Press Enter to accept [{utensil.empty_mass_kg}] kg, "
         f"or type a precise vessel mass (kg)",
-        default=utensil.mass_kg, lo=0.0, hi=50.0
+        default=utensil.empty_mass_kg, lo=0.0, hi=50.0
     )
 
     # ── Lid state ──────────────────────────────────────────────────────────────
@@ -677,10 +815,10 @@ def collect_inputs() -> dict:
         lid_idx = _menu("Lid State", ["Lid ON (covered)", "Lid OFF (open)"])
         if lid_idx == 0:
             inp["lid_label"]  = "Lid ON"
-            inp["lid_factor"] = LID_FACTOR_ON
+            inp["lid_factor"] = LID_ESCAPE_COEFFICIENT_ON
         else:
             inp["lid_label"]  = "Lid OFF"
-            inp["lid_factor"] = LID_FACTOR_OFF
+            inp["lid_factor"] = 1.0
 
     # ── Geometry: cylinder model with utensil-specific h/d and lid exposure ───
     m_w = inp["m_water_initial"]
@@ -817,7 +955,7 @@ def run_1hz_loop(inp: dict) -> dict:
     T_amb:    float = inp["t_ambient_c"]
     t_total_s: float = inp["t_total_s"]
     k_conv:   float = inp["k_conv_current"]
-    emissivity: float = inp.get("emissivity", EMISSIVITY_DEFAULT)
+    emissivity: float = inp.get("emissivity", 0.35)
 
     # Step 2A: Power In — constant for the entire run (high-fan rule)
     P_in_kw: float = (FAN_HIGH / 3600.0) * gcv * eta_geom
@@ -1133,7 +1271,7 @@ def print_receipt(inp: dict) -> None:
     box("Utensil",              inp["utensil_name"])
     box("Vessel mass (used)",   f"{inp['m_pot']:.3f}", "kg")
     box("Vessel Cp (DB)",       f"{inp['cp_pot']:.3f}", "kJ/kg·K")
-    box("Surface emissivity ε", f"{inp.get('emissivity', EMISSIVITY_DEFAULT):.2f}", "")
+    box("Surface emissivity ε", f"{inp.get('emissivity', 0.35):.2f}", "")
     box("Lid state",            inp["lid_label"])
     box("Pellet",                pellet.name)
     box("GCV (conservative)",   f"{pellet.conservative_gcv_kj:,.1f}", "kJ/kg")
@@ -1236,7 +1374,6 @@ def print_receipt(inp: dict) -> None:
     print(_c("  ► Simulation used HIGH FAN (0.78 kg/hr) throughout — conservative.", DIM))
     print(_c("=" * 72, ORG, BLD))
     print()
-
 
 # =============================================================================
 # MAIN ENTRY POINT
