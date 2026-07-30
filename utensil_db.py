@@ -5,26 +5,14 @@ EMISSIVITY_STAINLESS_STEEL = 0.25
 EMISSIVITY_CAST_IRON = 0.65
 """
 manufacturer_data.py
-IIT Delhi · Biomass Pellet Cookstove Simulator
+IIT Delhi ┬╖ Biomass Pellet Cookstove Simulator
 
 Verified manufacturer specifications for utensils (Hawkins, Prestige, etc.).
 DO NOT fabricate any data here. If an exact dimension is unavailable in official catalogs,
 leave it as None, and the simulator will mathematically derive it where physically valid.
 """
 
-from typing import TypedDict, Optional
 
-class UtensilSpec(TypedDict, total=False):
-    capacity_l: float
-    outer_diameter_m: Optional[float]
-    inner_diameter_m: Optional[float]
-    wall_thickness_m: Optional[float]
-    height_m: Optional[float]
-    empty_mass_kg: float
-    material: str
-    is_pressure: bool
-    pressure_rating_kpa: Optional[float]
-    maximum_fill_ratio: float
 
 # Material standard densities and properties referenced from physics_constants
 MATERIAL_ALUMINUM = "Aluminum"
@@ -34,8 +22,8 @@ MATERIAL_CAST_IRON = "Cast Iron"
 # =============================================================================
 # HAWKINS & PRESTIGE OFFICIAL CATALOG DATA (Sampled)
 # =============================================================================
-MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
-    # ── HAWKINS CLASSIC PRESSURE COOKERS ─────────────────────────────────────
+MANUFACTURER_SPECS = {
+    # ΓöÇΓöÇ HAWKINS CLASSIC PRESSURE COOKERS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     "Pressure Cooker 1.5L": {
         "capacity_l": 1.5,
         "inner_diameter_m": 0.130,
@@ -91,7 +79,7 @@ MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
         "maximum_fill_ratio": 0.66,
     },
 
-    # ── ALUMINIUM POTS (Neona / Generic) ─────────────────────────────────────
+    # ΓöÇΓöÇ ALUMINIUM POTS (Neona / Generic) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     "Aluminium Pot 1L": {
         "capacity_l": 1.0, "inner_diameter_m": None, "empty_mass_kg": 0.45,
         "material": MATERIAL_ALUMINUM, "is_pressure": False, "maximum_fill_ratio": 0.90
@@ -117,7 +105,7 @@ MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
         "material": MATERIAL_ALUMINUM, "is_pressure": False, "maximum_fill_ratio": 0.90
     },
 
-    # ── KADHAIS / WOKS ───────────────────────────────────────────────────────
+    # ΓöÇΓöÇ KADHAIS / WOKS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     "Kadhai / Wok 1.5L": {
         "capacity_l": 1.5, "inner_diameter_m": 0.220, "empty_mass_kg": 0.55,
         "material": MATERIAL_ALUMINUM, "is_pressure": False, "maximum_fill_ratio": 0.90
@@ -139,7 +127,7 @@ MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
         "material": MATERIAL_ALUMINUM, "is_pressure": False, "maximum_fill_ratio": 0.90
     },
 
-    # ── CAST IRON ────────────────────────────────────────────────────────────
+    # ΓöÇΓöÇ CAST IRON ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     "Cast Iron Tawa": {
         "capacity_l": 0.5, "inner_diameter_m": 0.260, "empty_mass_kg": 1.80,
         "material": MATERIAL_CAST_IRON, "is_pressure": False, "maximum_fill_ratio": 0.90
@@ -153,7 +141,7 @@ MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
         "material": MATERIAL_CAST_IRON, "is_pressure": False, "maximum_fill_ratio": 0.90
     },
 
-    # ── STAINLESS STEEL 304 ──────────────────────────────────────────────────
+    # ΓöÇΓöÇ STAINLESS STEEL 304 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     "Stainless Steel Pot 3L": {
         "capacity_l": 3.0, "inner_diameter_m": 0.180, "empty_mass_kg": 1.10,
         "material": MATERIAL_SS304, "is_pressure": False, "maximum_fill_ratio": 0.90
@@ -171,7 +159,7 @@ MANUFACTURER_SPECS: dict[str, UtensilSpec] = {
 
 """
 utensil_db.py
-IIT Delhi · Biomass Pellet Cookstove Simulator
+IIT Delhi ┬╖ Biomass Pellet Cookstove Simulator
 
 Provides the Utensil database and geometric modeling definitions.
 """
@@ -185,33 +173,110 @@ class GeometryType(Enum):
     TAWA = auto()
 
 class Utensil:
-    def __init__(self, name, empty_mass_kg, cp_kj_kgk, p_loss_kw, is_pressure,
-                 material_note, manufacturer, spec_type, base_diameter_mm=None,
-                 internal_height_mm=None, rated_capacity_L=None, geometry_type=None,
-                 emissivity=None):
+    def __init__(self, name, geometry_type, capacity_l, empty_mass_kg, material, is_pressure,
+                 maximum_fill_ratio, outer_diameter_m, inner_diameter_m, wall_thickness_m,
+                 height_m, cp_kj_kgk, emissivity, pressure_rating_kpa):
         self.name = name
-        self.empty_mass_kg = empty_mass_kg
-        self.cp_kj_kgk = cp_kj_kgk
-        self.p_loss_kw = p_loss_kw
-        self.is_pressure = is_pressure
-        self.material_note = material_note
-        self.manufacturer = manufacturer
-        self.spec_type = spec_type
-        self.base_diameter_mm = base_diameter_mm
-        self.internal_height_mm = internal_height_mm
-        self.rated_capacity_L = rated_capacity_L
         self.geometry_type = geometry_type
+        self.capacity_l = capacity_l
+        self.empty_mass_kg = empty_mass_kg
+        self.material = material
+        self.is_pressure = is_pressure
+        self.maximum_fill_ratio = maximum_fill_ratio
+        self.outer_diameter_m = outer_diameter_m
+        self.inner_diameter_m = inner_diameter_m
+        self.wall_thickness_m = wall_thickness_m
+        self.height_m = height_m
+        self.cp_kj_kgk = cp_kj_kgk
         self.emissivity = emissivity
+        self.pressure_rating_kpa = pressure_rating_kpa
 
-    def get_inner_radius(self):
-        if self.base_diameter_mm:
-            return (self.base_diameter_mm / 1000.0) / 2.0
-        return None
+    def get_inner_radius(self) :
+        """Return the inner radius in meters. If missing, derive a reasonable default based on capacity and assumed h/d."""
+        if self.inner_diameter_m is not None:
+            return self.inner_diameter_m / 2.0
+            
+        # Fallback mathematically derived radius if manufacturer spec is missing
+        V_m3 = self.capacity_l / 1000.0
+        # Assume a standard h/d ratio if we don't have the explicit radius
+        h_over_d = 0.65 if self.geometry_type in (GeometryType.CYLINDER, GeometryType.PRESSURE_COOKER) else 0.45
+        d_m = (4.0 * V_m3 / (math.pi * h_over_d)) ** (1.0 / 3.0)
+        return d_m / 2.0
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# UTENSIL CATEGORIES — Ordered grouping for two-step menu selection
-# ═══════════════════════════════════════════════════════════════════════════════
-UTENSIL_CATEGORIES: list[tuple[str, list[str]]] = [
+    def get_total_height(self) :
+        """Return the total inner height of the vessel in meters."""
+        if self.height_m is not None:
+            return self.height_m
+            
+        r_inner = self.get_inner_radius()
+        V_m3 = self.capacity_l / 1000.0
+        
+        if self.geometry_type in (GeometryType.CYLINDER, GeometryType.PRESSURE_COOKER):
+            # V = pi * r^2 * h
+            return V_m3 / (math.pi * (r_inner ** 2))
+        elif self.geometry_type == GeometryType.KADHAI:
+            # Spherical cap approximation V = (pi * h / 6) * (3r^2 + h^2)
+            # Rough numerical inversion for kadhai shape (shallow bowl)
+            h = r_inner * 0.90 # Approximation for typical woks
+            return h
+        else: # TAWA
+            return 0.02 # Minimal height
+
+def _determine_geometry(name) :
+    if "Pressure Cooker" in name:
+        return GeometryType.PRESSURE_COOKER
+    if "Kadhai" in name or "Wok" in name:
+        return GeometryType.KADHAI
+    if "Tawa" in name or "Pan" in name:
+        return GeometryType.TAWA
+    return GeometryType.CYLINDER
+
+def _get_cp(material) :
+    # Source: Incropera et al. Table A.1 / NIST WebBook
+    if material == MATERIAL_ALUMINUM:
+        return 0.897
+    if material == MATERIAL_CAST_IRON:
+        return 0.460
+    if material == MATERIAL_SS304:
+        return 0.500
+    return 0.897
+
+def _get_emissivity(material) :
+    if material == MATERIAL_CAST_IRON:
+        return EMISSIVITY_CAST_IRON
+    if material == MATERIAL_SS304:
+        return EMISSIVITY_STAINLESS_STEEL
+    return EMISSIVITY_ALUMINUM_OXIDIZED
+
+# =============================================================================
+# BUILD MASTER DATABASE
+# =============================================================================
+UTENSIL_DB = {}
+
+for name, spec in MANUFACTURER_SPECS.items():
+    geom = _determine_geometry(name)
+    UTENSIL_DB[name] = Utensil(
+        name=name,
+        geometry_type=geom,
+        capacity_l=spec["capacity_l"],
+        empty_mass_kg=spec["empty_mass_kg"],
+        material=spec["material"],
+        is_pressure=spec["is_pressure"],
+        maximum_fill_ratio=spec["maximum_fill_ratio"],
+        outer_diameter_m=spec.get("outer_diameter_m"),
+        inner_diameter_m=spec.get("inner_diameter_m"),
+        wall_thickness_m=spec.get("wall_thickness_m"),
+        height_m=spec.get("height_m"),
+        cp_kj_kgk=_get_cp(spec["material"]),
+        emissivity=_get_emissivity(spec["material"]),
+        pressure_rating_kpa=spec.get("pressure_rating_kpa")
+    )
+
+
+# ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+# UTENSIL CATEGORIES ΓÇö Ordered grouping for two-step menu selection
+# ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+UTENSIL_CATEGORIES = [
     ("Kadhai / Wok", [
         "Kadhai / Wok 1.5L",
         "Kadhai / Wok 2.5L",
@@ -247,19 +312,19 @@ UTENSIL_CATEGORIES: list[tuple[str, list[str]]] = [
     ]),
 ]
 
-def get_category_names() -> list[str]:
+def get_category_names() :
     return [cat[0] for cat in UTENSIL_CATEGORIES]
 
-def get_utensils_in_category(cat_name: str) -> list[str]:
+def get_utensils_in_category(cat_name) :
     for cat, items in UTENSIL_CATEGORIES:
         if cat == cat_name:
             return items
     return []
 
-def get_utensil_names() -> list[str]:
+def get_utensil_names() :
     return list(UTENSIL_DB.keys())
 
-def get_utensil(name: str) -> Utensil:
+def get_utensil(name) :
     if name not in UTENSIL_DB:
         raise KeyError(f"Unknown utensil: {name!r}. Available: {get_utensil_names()}")
     return UTENSIL_DB[name]
