@@ -78,7 +78,7 @@ def init_data():
         u = get_utensil(name)
         utensils.append({
             "name": name,
-            "mass_kg": u.mass_kg,
+            "mass_kg": u.empty_mass_kg,
             "is_pressure": u.is_pressure
         })
 

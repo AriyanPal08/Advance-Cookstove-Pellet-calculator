@@ -93,7 +93,7 @@ def build_inputs(data):
     inp["cp_pot"] = utensil.cp_kj_kgk
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = _emissivity_for_utensil(utensil)
-    inp["m_pot"] = float(data.get("m_pot", utensil.mass_kg))
+    inp["m_pot"] = float(data.get("m_pot", utensil.empty_mass_kg))
 
     if not dish.variable_water:
         for stage in dish.stages:
