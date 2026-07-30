@@ -103,3 +103,7 @@ docker-compose.override.yml
 
 # Kombai AI Output
 .kombai/
+
+# MicroPython third-party libraries
+lcd_api.py
+esp8266_i2c_lcd.py
