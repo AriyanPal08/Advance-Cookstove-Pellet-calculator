@@ -1,5 +1,4 @@
 
-from __future__ import annotations
 
 EMISSIVITY_ALUMINUM_OXIDIZED = 0.35
 EMISSIVITY_STAINLESS_STEEL = 0.25
@@ -176,7 +175,6 @@ IIT Delhi · Biomass Pellet Cookstove Simulator
 
 Provides the Utensil database and geometric modeling definitions.
 """
-from dataclasses import dataclass
 from enum import Enum, auto
 import math
 
@@ -186,119 +184,29 @@ class GeometryType(Enum):
     KADHAI = auto()
     TAWA = auto()
 
-@dataclass(frozen=True)
 class Utensil:
-    """
-    Immutable vessel record enriched with physical geometry and manufacturer specs.
-    """
-    name: str
-    geometry_type: GeometryType
-    capacity_l: float
-    empty_mass_kg: float
-    material: str
-    is_pressure: bool
-    maximum_fill_ratio: float
-    
-    # Optional dimensions (m). If missing, derived mathematically where valid.
-    outer_diameter_m: float | None
-    inner_diameter_m: float | None
-    wall_thickness_m: float | None
-    height_m: float | None
-    
-    # Computed physics properties
-    cp_kj_kgk: float
-    emissivity: float
-    pressure_rating_kpa: float | None
+    def __init__(self, name, empty_mass_kg, cp_kj_kgk, p_loss_kw, is_pressure,
+                 material_note, manufacturer, spec_type, base_diameter_mm=None,
+                 internal_height_mm=None, rated_capacity_L=None, geometry_type=None,
+                 emissivity=None):
+        self.name = name
+        self.empty_mass_kg = empty_mass_kg
+        self.cp_kj_kgk = cp_kj_kgk
+        self.p_loss_kw = p_loss_kw
+        self.is_pressure = is_pressure
+        self.material_note = material_note
+        self.manufacturer = manufacturer
+        self.spec_type = spec_type
+        self.base_diameter_mm = base_diameter_mm
+        self.internal_height_mm = internal_height_mm
+        self.rated_capacity_L = rated_capacity_L
+        self.geometry_type = geometry_type
+        self.emissivity = emissivity
 
-    def __post_init__(self) -> None:
-        if not self.name.strip():
-            raise ValueError("Utensil.name must not be empty.")
-        if self.empty_mass_kg <= 0:
-            raise ValueError(f"[{self.name}] empty_mass_kg must be > 0.")
-        if self.cp_kj_kgk <= 0:
-            raise ValueError(f"[{self.name}] cp_kj_kgk must be > 0.")
-
-    def get_inner_radius(self) -> float:
-        """Return the inner radius in meters. If missing, derive a reasonable default based on capacity and assumed h/d."""
-        if self.inner_diameter_m is not None:
-            return self.inner_diameter_m / 2.0
-            
-        # Fallback mathematically derived radius if manufacturer spec is missing
-        V_m3 = self.capacity_l / 1000.0
-        # Assume a standard h/d ratio if we don't have the explicit radius
-        h_over_d = 0.65 if self.geometry_type in (GeometryType.CYLINDER, GeometryType.PRESSURE_COOKER) else 0.45
-        d_m = (4.0 * V_m3 / (math.pi * h_over_d)) ** (1.0 / 3.0)
-        return d_m / 2.0
-
-    def get_total_height(self) -> float:
-        """Return the total inner height of the vessel in meters."""
-        if self.height_m is not None:
-            return self.height_m
-            
-        r_inner = self.get_inner_radius()
-        V_m3 = self.capacity_l / 1000.0
-        
-        if self.geometry_type in (GeometryType.CYLINDER, GeometryType.PRESSURE_COOKER):
-            # V = pi * r^2 * h
-            return V_m3 / (math.pi * (r_inner ** 2))
-        elif self.geometry_type == GeometryType.KADHAI:
-            # Spherical cap approximation V = (pi * h / 6) * (3r^2 + h^2)
-            # Rough numerical inversion for kadhai shape (shallow bowl)
-            h = r_inner * 0.90 # Approximation for typical woks
-            return h
-        else: # TAWA
-            return 0.02 # Minimal height
-
-def _determine_geometry(name: str) -> GeometryType:
-    if "Pressure Cooker" in name:
-        return GeometryType.PRESSURE_COOKER
-    if "Kadhai" in name or "Wok" in name:
-        return GeometryType.KADHAI
-    if "Tawa" in name or "Pan" in name:
-        return GeometryType.TAWA
-    return GeometryType.CYLINDER
-
-def _get_cp(material: str) -> float:
-    # Source: Incropera et al. Table A.1 / NIST WebBook
-    if material == MATERIAL_ALUMINUM:
-        return 0.897
-    if material == MATERIAL_CAST_IRON:
-        return 0.460
-    if material == MATERIAL_SS304:
-        return 0.500
-    return 0.897
-
-def _get_emissivity(material: str) -> float:
-    if material == MATERIAL_CAST_IRON:
-        return EMISSIVITY_CAST_IRON
-    if material == MATERIAL_SS304:
-        return EMISSIVITY_STAINLESS_STEEL
-    return EMISSIVITY_ALUMINUM_OXIDIZED
-
-# =============================================================================
-# BUILD MASTER DATABASE
-# =============================================================================
-UTENSIL_DB: dict[str, Utensil] = {}
-
-for name, spec in MANUFACTURER_SPECS.items():
-    geom = _determine_geometry(name)
-    UTENSIL_DB[name] = Utensil(
-        name=name,
-        geometry_type=geom,
-        capacity_l=spec["capacity_l"],
-        empty_mass_kg=spec["empty_mass_kg"],
-        material=spec["material"],
-        is_pressure=spec["is_pressure"],
-        maximum_fill_ratio=spec["maximum_fill_ratio"],
-        outer_diameter_m=spec.get("outer_diameter_m"),
-        inner_diameter_m=spec.get("inner_diameter_m"),
-        wall_thickness_m=spec.get("wall_thickness_m"),
-        height_m=spec.get("height_m"),
-        cp_kj_kgk=_get_cp(spec["material"]),
-        emissivity=_get_emissivity(spec["material"]),
-        pressure_rating_kpa=spec.get("pressure_rating_kpa")
-    )
-
+    def get_inner_radius(self):
+        if self.base_diameter_mm:
+            return (self.base_diameter_mm / 1000.0) / 2.0
+        return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # UTENSIL CATEGORIES — Ordered grouping for two-step menu selection

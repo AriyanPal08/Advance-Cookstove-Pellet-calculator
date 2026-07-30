@@ -1,4 +1,3 @@
-from __future__ import annotations
 import math
 import math
 """
@@ -182,12 +181,12 @@ NO experimentally calibrated stove parameters belong here.
 # UNIVERSAL PHYSICAL CONSTANTS
 # =============================================================================
 # Source: Universal physics
-SIGMA: float = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
+SIGMA = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
 
 # Source: IAPWS / NIST Chemistry WebBook
-CP_WATER: float = 4.184       # kJ/kg·K — Specific heat of liquid water (~60°C)
-L_V: float = 2257.0     # kJ/kg   — Latent heat of vaporization of water (1 atm)
-BOILING_POINT_WATER: float = 100.0  # °C  — Nominal boiling point at 1 atm
+CP_WATER = 4.184       # kJ/kg·K — Specific heat of liquid water (~60°C)
+L_V = 2257.0     # kJ/kg   — Latent heat of vaporization of water (1 atm)
+BOILING_POINT_WATER = 100.0  # °C  — Nominal boiling point at 1 atm
 
 # =============================================================================
 # PEER-REVIEWED LITERATURE CONSTANTS
@@ -203,9 +202,9 @@ WIND_TIERS: dict[str, float] = {
 
 # Material Emissivities (Oxidized / Typical usage states)
 # Source: Incropera et al. Table A.11 / NIST
-EMISSIVITY_ALUMINUM_OXIDIZED: float = 0.35
-EMISSIVITY_CAST_IRON: float = 0.65
-EMISSIVITY_STAINLESS_STEEL: float = 0.50
+EMISSIVITY_ALUMINUM_OXIDIZED = 0.35
+EMISSIVITY_CAST_IRON = 0.65
+EMISSIVITY_STAINLESS_STEEL = 0.50
 
 """
 calibration.py
@@ -224,23 +223,23 @@ Tadka Chulha biomass pellet cookstove used by IIT Delhi for research purposes.
 # Justification: Represents the overall thermal efficiency of the complete stove. 
 # Intentionally combines combustion efficiency, flame interception, thermal transfer, 
 # and unavoidable losses into a single experimentally validated engineering parameter.
-STOVE_THERMAL_EFFICIENCY: float = 0.47
+STOVE_THERMAL_EFFICIENCY = 0.47
 
 # PRESSURE COOKER KINETIC REDUCTION FACTOR
 # Source: IIT Delhi experimental cook times combined with theoretical Arrhenius Equation 
 # (120°C vs 100°C for starch gelatinization).
 # Justification: Brings simulated 2L PC Rice (4 pax) cook time down to experimentally 
 # validated limits (~13.5 min) without breaking physics.
-PRESSURE_POST_BOIL_FACTOR: float = 0.20
+PRESSURE_POST_BOIL_FACTOR = 0.20
 
 # LID EVAPORATION ESCAPE COEFFICIENT (Covered, Unsealed Pot)
 # Source: Calibrated to WBT 4.2.3 covered-pot metrics.
 # Justification: Represents the fractional area or escape rate of steam when a standard lid is placed on a pot.
-LID_ESCAPE_COEFFICIENT_ON: float = 0.15
+LID_ESCAPE_COEFFICIENT_ON = 0.15
 
 # MECHANICAL FEED LIMIT
 # Source: Tadka Chulha blower / auger maximum feed rate.
-FAN_HIGH: float = 0.78  # kg/hr
+FAN_HIGH = 0.78  # kg/hr
 
 """
 validation_data.py
@@ -253,21 +252,9 @@ ground-truth data from the simulator physics engine.
 
 from typing import TypedDict, Optional
 
-class ValidationDataPoint(TypedDict):
-    test_name: str
-    dish_name: str
-    utensil_name: str
-    mass_kg: float
-    wind_tier: str
-    ambient_temp_c: float
-    lid_factor_name: str  # "Lid On" or "Lid Off"
-    experimental_time_s: float
-    experimental_pellets_g: Optional[float]
-    confidence: str
-    notes: str
 
 # Ground truth datasets from IIT Delhi Tadka Chulha experiments
-EXPERIMENTAL_DATASETS: list[ValidationDataPoint] = [
+EXPERIMENTAL_DATASETS = [
     {
         "test_name": "WBT 5L Pot - Lid Off",
         "dish_name": "Water",
@@ -296,15 +283,15 @@ EXPERIMENTAL_DATASETS: list[ValidationDataPoint] = [
     },
 ]
 
-dt: float = 1.0      # s      — simulation time step (1 Hz)
-T_OVERHEAT_C: float = 150.0   # °C — critical vessel overheat threshold
-M_WATER_DRY: float = 0.0     # kg — dry-boil threshold
+dt = 1.0      # s      — simulation time step (1 Hz)
+T_OVERHEAT_C = 150.0   # °C — critical vessel overheat threshold
+M_WATER_DRY = 0.0     # kg — dry-boil threshold
 
 # Loop safety cap (prevents infinite loop on pathological inputs)
-MAX_SIMULATION_TIME: float = 6 * 3600.0  # 6 hours in seconds
+MAX_SIMULATION_TIME = 6 * 3600.0  # 6 hours in seconds
 
 # Procurement margin on physics-based pellet recommendation (feed-rate variance)
-PELLET_PROCUREMENT_MARGIN: float = 0.08  # 8 %
+PELLET_PROCUREMENT_MARGIN = 0.08  # 8 %
 
 # =============================================================================
 # SECTION 3b — SHARED PHYSICS HELPERS  (v4 — single source of truth)
@@ -315,11 +302,11 @@ def _emissivity_for_utensil(utensil: Utensil) -> float:
 
 
 def compute_vessel_geometry(
-    m_water_kg: float,
-    utensil_name: str,
-    lid_factor: float,
-    m_food_kg: float = 0.0,
-) -> dict[str, float]:
+    m_water_kg,
+    utensil_name,
+    lid_factor,
+    m_food_kg = 0.0,
+) :
     utensil = get_utensil(utensil_name)
     r_inner = utensil.get_inner_radius()
     h_total = utensil.get_total_height()
@@ -373,7 +360,7 @@ def compute_vessel_geometry(
 
 
 
-def evaporation_loss_w(T_pot_c: float, T_amb_c: float, A_evap_m2: float, k_conv: float) -> float:
+def evaporation_loss_w(T_pot_c, T_amb_c, A_evap_m2, k_conv) -> float:
     """
     Mass-transfer analogy for pre-boil evaporation (Chilton-Colburn J-factor).
     h_m = h_c / (rho_air * Cp_air * Le^(2/3))
@@ -395,12 +382,12 @@ def evaporation_loss_w(T_pot_c: float, T_amb_c: float, A_evap_m2: float, k_conv:
     return m_evap_rate_kg_s * (L_V * 1000.0)
 
 def heat_loss_w(
-    T_pot_c: float,
-    T_amb_c: float,
-    A_m2: float,
-    k_conv: float,
-    emissivity: float,
-    lid_factor: float = 1.0,
+    T_pot_c,
+    T_amb_c,
+    A_m2,
+    k_conv,
+    emissivity,
+    lid_factor = 1.0,
 ) -> float:
     """Total convective + radiative heat bleed (W)."""
     T_pot_K = T_pot_c + 273.15
@@ -412,21 +399,21 @@ def heat_loss_w(
 
 
 def heat_loss_kw(
-    T_pot_c: float,
-    T_amb_c: float,
-    A_m2: float,
-    k_conv: float,
-    emissivity: float,
-    lid_factor: float = 1.0,
+    T_pot_c,
+    T_amb_c,
+    A_m2,
+    k_conv,
+    emissivity,
+    lid_factor = 1.0,
 ) -> float:
     """Heat bleed in kW (convenience wrapper)."""
     return heat_loss_w(T_pot_c, T_amb_c, A_m2, k_conv, emissivity, lid_factor) / 1000.0
 
 
 def compute_safety_buffer_s(
-    t_heat_s: float,
-    k_conv: float,
-    m_water_kg: float,
+    t_heat_s,
+    k_conv,
+    m_water_kg,
 ) -> float:
     """
     Justified post-estimate safety margin (60–120 s).
@@ -445,20 +432,20 @@ def compute_safety_buffer_s(
 
 
 def _transient_preview_tick(
-    T_pot: float,
-    m_water: float,
-    m_food: float,
-    cp_food: float,
-    m_pot: float,
-    cp_pot: float,
-    P_in_kw: float,
-    A_m2: float,
-    A_top: float,
-    k_conv: float,
-    emissivity: float,
-    T_amb: float,
-    lid_fac: float,
-) -> tuple[float, float, float]:
+    T_pot,
+    m_water,
+    m_food,
+    cp_food,
+    m_pot,
+    cp_pot,
+    P_in_kw,
+    A_m2,
+    A_top,
+    k_conv,
+    emissivity,
+    T_amb,
+    lid_fac,
+) :
     """Execute one 1 Hz physics tick (Steps 2A–2D)."""
     Q_in  = P_in_kw * dt
     MCp_total = (m_food * cp_food) + (m_water * CP_WATER) + (m_pot * cp_pot)
@@ -513,20 +500,20 @@ def _transient_preview_tick(
 
 
 def estimate_cook_time(
-    m_food: float,
-    cp_food: float,
-    m_water: float,
-    m_pot: float,
-    cp_pot: float,
-    t_kinetic_s: float,
-    P_in_kw: float,
-    A_m2: float,
-    A_top: float,
-    k_conv: float,
-    emissivity: float,
-    T_amb: float,
-    lid_fac: float,
-) -> dict[str, float]:
+    m_food,
+    cp_food,
+    m_water,
+    m_pot,
+    cp_pot,
+    t_kinetic_s,
+    P_in_kw,
+    A_m2,
+    A_top,
+    k_conv,
+    emissivity,
+    T_amb,
+    lid_fac,
+) :
     """
     Shadow 1 Hz transient preview: heat-up to 100 °C, then kinetic simmer.
     Returns timing diagnostics used for the Total Time Estimator.
@@ -534,7 +521,7 @@ def estimate_cook_time(
     T_pot = T_amb
     m_w   = m_water
     t_elapsed = 0.0
-    t_boil: float | None = None
+    t_boil = None
     Q_out_accum = 0.0
     heat_cannot_rise = False
 
@@ -571,7 +558,7 @@ def estimate_cook_time(
         "t_boil_s": t_boil if t_boil is not None else 0.0,
         "t_preview_s": t_elapsed,
         "Q_out_accum_kj": Q_out_accum,
-        "heat_cannot_rise": float(heat_cannot_rise),
+        "heat_cannot_rise": bool(heat_cannot_rise),
         "m_water_end_kg": m_w,
     }
 
@@ -582,28 +569,28 @@ def estimate_cook_time(
 
 _ANSI = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
-def _c(text: str, *codes: str) -> str:
+def _c(text, *codes) -> str:
     return ("".join(codes) + text + "\033[0m") if _ANSI else text
 
 RST = "\033[0m"; BLD = "\033[1m"; DIM = "\033[2m"
 CYN = "\033[36m"; GRN = "\033[32m"; YLW = "\033[33m"
 RED = "\033[31m"; BLU = "\033[34m"; ORG = "\033[38;5;214m"; WHT = "\033[97m"
 
-def _hdr(title: str) -> None:
+def _hdr(title) -> None:
     print()
     print(_c("=" * 72, CYN, BLD))
     print(_c(f"  {title}", BLD, WHT))
     print(_c("=" * 72, CYN, BLD))
 
-def _sec(title: str) -> None:
+def _sec(title) -> None:
     print()
     print(_c(f"  ── {title} ──", BLD, YLW))
     print(_c("─" * 72, DIM))
 
-def _warn(msg: str) -> None:
+def _warn(msg) -> None:
     print(_c(f"\n  [!]  {msg}", YLW))
 
-def _prompt(msg: str, default: str | None = None) -> str:
+def _prompt(msg, default=None) -> str:
     suffix = _c(f" [{default}]", DIM) if default is not None else ""
     try:
         raw = input(_c(f"\n  >>  {msg}", BLD, BLU) + suffix + _c(" : ", BLD, BLU)).strip()
@@ -611,7 +598,7 @@ def _prompt(msg: str, default: str | None = None) -> str:
         raw = ""
     return raw if (raw != "" or default is None) else default
 
-def _prompt_float(msg: str, default: float, lo: float = 0.0, hi: float = 1e9) -> float:
+def _prompt_float(msg, default, lo = 0.0, hi = 1e9) -> float:
     while True:
         try:
             raw = _prompt(msg, str(default))
@@ -624,7 +611,7 @@ def _prompt_float(msg: str, default: float, lo: float = 0.0, hi: float = 1e9) ->
         except KeyboardInterrupt:
             _quit_or_continue()
 
-def _prompt_int(msg: str, default: int, lo: int = 1) -> int:
+def _prompt_int(msg, default, lo = 1) -> int:
     while True:
         try:
             raw = _prompt(msg, str(default))
@@ -637,7 +624,7 @@ def _prompt_int(msg: str, default: int, lo: int = 1) -> int:
         except KeyboardInterrupt:
             _quit_or_continue()
 
-def _menu(title: str, options: list[str]) -> int:
+def _menu(title, options: list[str]) -> int:
     _sec(title)
     for i, opt in enumerate(options, 1):
         print(_c(f"    [{i}]  {opt}", WHT))
@@ -668,7 +655,7 @@ def _quit_or_continue() -> None:
 # PHASE 1 — STATE INITIALIZATION (The Setup)
 # =============================================================================
 
-def collect_inputs() -> dict:
+def collect_inputs() :
     """
     Phase 1: collect dish, utensil, pellet, ambient temperature, and the
     unified Total Cooking Time (via the new Total Time Estimator).
@@ -709,7 +696,7 @@ def collect_inputs() -> dict:
         _sec("Step 2 / 7  —  Number of People / Servings")
         inp["portions"] = _prompt_int("Number of people", default=2)
 
-    n: int = inp["portions"]
+    n = inp["portions"]
 
     # ── Database lookups: food mass/water/Cp + base kinetic time ─────────────
     # "If variable_water is True, t_kinetic_base_s MUST equal 0.0"
@@ -917,7 +904,7 @@ def collect_inputs() -> dict:
 # ZERO STATE  (Phase 1 continued)
 # =============================================================================
 
-def zero_state(inp: dict) -> dict:
+def zero_state(inp: dict) :
     inp.update({
         "t_elapsed_s":      0.0,
         "T_pot_c":          inp["t_ambient_c"],
@@ -934,7 +921,7 @@ def zero_state(inp: dict) -> dict:
 # PHASE 2 — 1Hz TRANSIENT LOOP (The Core Engine)
 # =============================================================================
 
-def run_1hz_loop(inp: dict) -> dict:
+def run_1hz_loop(inp: dict) :
     """
     Phase 2: Execute the 1Hz transient loop.
 
@@ -949,23 +936,23 @@ def run_1hz_loop(inp: dict) -> dict:
     m_pot:    float = inp["m_pot"]
     cp_pot:   float = inp["cp_pot"]
     A:        float = inp["A_m2"]
-    eta_geom: float = inp["eta_geom"]
+    eta_geom = inp["eta_geom"]
     gcv:      float = inp["gcv_kj_kg"]
     lid_fac:  float = inp["lid_factor"]
     T_amb:    float = inp["t_ambient_c"]
-    t_total_s: float = inp["t_total_s"]
+    t_total_s = inp["t_total_s"]
     k_conv:   float = inp["k_conv_current"]
-    emissivity: float = inp.get("emissivity", 0.35)
+    emissivity = inp.get("emissivity", 0.35)
 
     # Step 2A: Power In — constant for the entire run (high-fan rule)
-    P_in_kw: float = (FAN_HIGH / 3600.0) * gcv * eta_geom
+    P_in_kw = (FAN_HIGH / 3600.0) * gcv * eta_geom
 
     T_pot:           float       = inp["T_pot_c"]
     m_water:         float       = inp["m_water_current"]
     t_elapsed:       float       = inp["t_elapsed_s"]
     flag_dry:        bool        = False
     flag_over:       bool        = False
-    t_boil_reached:  float | None = None
+    t_boil_reached = None
 
     Q_in_kj = 0.0
     Q_out_kj = 0.0
@@ -976,7 +963,7 @@ def run_1hz_loop(inp: dict) -> dict:
     tick_log: list = []
     tick = 0
 
-    # ── LOOP CONDITION (UPDATED): strictly absolute-time based ────────────────
+    # ── LOOP CONDITION (UPDATED)ictly absolute-time based ────────────────
     while t_elapsed < t_total_s:
 
         T_before = T_pot
@@ -1088,7 +1075,7 @@ def run_1hz_loop(inp: dict) -> dict:
 # PHASE 3 — FINAL OUTPUT & DIAGNOSTICS
 # =============================================================================
 
-def post_process(inp: dict) -> dict:
+def post_process(inp: dict) :
     """
     Phase 3: Pellet procurement recommendation + research diagnostics.
 
@@ -1153,7 +1140,7 @@ def post_process(inp: dict) -> dict:
     # DYNAMIC PROCUREMENT MARGIN (Stochastic Environmental Variance)
     # ═══════════════════════════════════════════════════════════════════════════
     if k_conv_current >= 50.0:
-        # High wind: intense forced convection increases Q_out, risk of underfeed
+        # High windense forced convection increases Q_out, risk of underfeed
         procurement_margin = 0.12
         margin_reason = "High Wind (k_conv >= 50.0 W/m²·K)"
     elif lid_factor == 1.0:
@@ -1226,7 +1213,7 @@ def post_process(inp: dict) -> dict:
 # RECEIPT PRINTER
 # =============================================================================
 
-def _bar(fraction: float, width: int = 28) -> str:
+def _bar(fraction, width = 28) -> str:
     filled = int(min(max(fraction, 0.0), 1.0) * width)
     return "|" + "█" * filled + "░" * (width - filled) + "|"
 
@@ -1239,16 +1226,16 @@ def print_receipt(inp: dict) -> None:
     pellets_g = inp["pellets_required_g"]
     q_in_total = inp["P_in_kw"] * t_el
 
-    def box(label: str, val: str, unit: str = "", col: str = CYN) -> None:
+    def box(label, val, unit = "", col = CYN) -> None:
         u   = f" {unit}" if unit else ""
         v   = f"{val}{u}"
         pad = max(0, 62 - len(label) - len(v))
         print(_c(f"  | {label}", col) + _c(v, GRN, BLD) + _c(" " * pad + "|", col))
 
-    def div(col: str = CYN) -> None:
+    def div(col = CYN) -> None:
         print(_c("  +" + "─" * 66 + "+", col))
 
-    def title(t: str, col: str = CYN) -> None:
+    def title(t, col = CYN) -> None:
         print(_c(f"\n  +── {t} " + "─" * max(2, 60 - len(t)) + "+", col, BLD))
 
     print()

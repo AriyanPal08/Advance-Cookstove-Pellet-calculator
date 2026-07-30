@@ -45,8 +45,8 @@ get_pellet_names = pellet_db.get_pellet_names
 get_utensil_names = utensil_db.get_utensil_names
 get_utensil = utensil_db.get_utensil
 WIND_TIERS = main_logic.WIND_TIERS
-LID_FACTOR_ON = 0.15
-LID_FACTOR_OFF = 1.0
+LID_FACTOR_ON = main_logic.LID_FACTOR_ON
+LID_FACTOR_OFF = main_logic.LID_FACTOR_OFF
 FAN_HIGH = main_logic.FAN_HIGH
 CP_WATER = main_logic.CP_WATER
 PRESSURE_POST_BOIL_FACTOR = main_logic.PRESSURE_POST_BOIL_FACTOR
@@ -93,7 +93,7 @@ def build_inputs(data):
     inp["cp_pot"] = utensil.cp_kj_kgk
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = _emissivity_for_utensil(utensil)
-    inp["m_pot"] = float(data.get("m_pot", utensil.empty_mass_kg))
+    inp["m_pot"] = float(data.get("m_pot", utensil.mass_kg))
 
     if not dish.variable_water:
         for stage in dish.stages:

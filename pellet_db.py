@@ -38,7 +38,6 @@ SOURCES
     comparative analysis. Acta Sci. Technol., 39(4), 461-468.
 """
 
-from __future__ import annotations
 from dataclasses import dataclass, field
 
 KCAL_TO_KJ: float = 4.184  # Standard thermochemical conversion
