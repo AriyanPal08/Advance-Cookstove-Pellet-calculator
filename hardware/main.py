@@ -338,6 +338,18 @@ def lcd_write_line(row, text):
     lcd.putstr(("{:<" + str(LCD_COLS) + "}").format(text[:LCD_COLS]))
 
 def fmt_trunc(text, width=14):
+    text = text.replace("Aluminium Pot", "AL Pot") \
+               .replace("Aluminium", "AL") \
+               .replace("Pressure Cooker", "Cooker") \
+               .replace("Kadhai / Wok", "Kadhai") \
+               .replace("Stainless Steel", "Steel") \
+               .replace("Cast Iron", "Iron") \
+               .replace(" (Soaked Chickpea)", "") \
+               .replace(" (Soaked Red Kidney Bean)", "") \
+               .replace(" (Goat)", "") \
+               .replace(" (Chai)", "") \
+               .replace(" (RDF)", "") \
+               .replace(" Pellets", "")
     if len(text) > width:
         return text[:width - 1] + "."
     return text
@@ -617,7 +629,7 @@ _FRIENDLY_MSG = {
 
 def collect_inputs():
     inp = {}
-    lcd_show("TADKA CHULHA", "PELLET CALCULATOR")
+    lcd_show("  TADKA CHULHA", "PELLET CALCULATR")
     boot_jingle()
     while not was_pressed():
         time.sleep_ms(50)
