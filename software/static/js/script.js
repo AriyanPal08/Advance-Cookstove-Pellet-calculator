@@ -255,23 +255,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getUtensilVisualCategory(name) {
-        if (name.includes('AL Pot')) return 'AL Pot';
-        if (name.includes('Cooker')) return 'Cooker';
-        if (name.startsWith('Kadhai')) return 'Kadhai / Wok';
-        if (name.includes('Iron Tawa')) return 'Cast Iron Tawa';
-        if (name.includes('Iron BIG PAN')) return 'Cast Iron BIG PAN';
-        if (name.includes('Iron Kadhai')) return 'Cast Iron Kadhai';
-        if (name.includes('Steel Pot')) return 'Steel Pot';
-        if (name.includes('Steel Kadhai')) return 'Steel Kadhai';
+        if (name.includes('Aluminium Pot')) return 'AL Pot';
+        if (name.includes('Pressure Cooker')) return 'Cooker';
+        if (name.includes('Kadhai / Wok')) return 'Kadhai / Wok';
+        if (name.includes('Cast Iron Tawa')) return 'Cast Iron Tawa';
+        if (name.includes('Cast Iron Frying Pan')) return 'Cast Iron BIG PAN';
+        if (name.includes('Cast Iron Kadhai')) return 'Cast Iron Kadhai';
+        if (name.includes('Stainless Steel Pot')) return 'Steel Pot';
+        if (name.includes('Stainless Steel Kadhai')) return 'Steel Kadhai';
         return 'Other';
     }
 
     function getUtensilCategory(name) {
-        if (name.startsWith('Kadhai')) return 'Kadhai / Wok';
-        if (name.startsWith('AL Pot')) return 'AL Pot';
-        if (name.startsWith('Cooker')) return 'Cooker';
-        if (name.startsWith('Iron') || name.startsWith('Cast')) return 'Cast Iron';
-        if (name.includes('Steel')) return 'Steel';
+        if (name.includes('Kadhai / Wok')) return 'Kadhai / Wok';
+        if (name.includes('Aluminium Pot')) return 'Aluminium Pot';
+        if (name.includes('Pressure Cooker')) return 'Pressure Cooker';
+        if (name.includes('Cast Iron')) return 'Cast Iron';
+        if (name.includes('Stainless Steel')) return 'Stainless Steel';
         return 'Cooking Vessel';
     }
 
