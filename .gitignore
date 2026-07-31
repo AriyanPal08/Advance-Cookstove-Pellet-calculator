@@ -98,6 +98,12 @@ db.sqlite3
 *.log
 *.log.*
 
+# Private research notes and raw experiment records (never publish without review)
+RESEARCH_AUDIT_AND_VALIDATION.md
+EXPERIMENT_LOG_TEMPLATE.csv
+experiment_results*.csv
+experiment_log*.csv
+
 # Docker
 docker-compose.override.yml
 

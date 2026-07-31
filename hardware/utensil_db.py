@@ -163,14 +163,14 @@ IIT Delhi ┬╖ Biomass Pellet Cookstove Simulator
 
 Provides the Utensil database and geometric modeling definitions.
 """
-from enum import Enum, auto
 import math
 
-class GeometryType(Enum):
-    CYLINDER = auto()
-    PRESSURE_COOKER = auto()
-    KADHAI = auto()
-    TAWA = auto()
+class GeometryType:
+    """Integer constants; avoids CPython's enum module on MicroPython."""
+    CYLINDER = 0
+    PRESSURE_COOKER = 1
+    KADHAI = 2
+    TAWA = 3
 
 class Utensil:
     def __init__(self, name, geometry_type, capacity_l, empty_mass_kg, material, is_pressure,

@@ -38,52 +38,21 @@ SOURCES
     comparative analysis. Acta Sci. Technol., 39(4), 461-468.
 """
 
-from dataclasses import dataclass, field
 
 KCAL_TO_KJ: float = 4.184  # Standard thermochemical conversion
 
 
-@dataclass(frozen=True)
 class PelletType:
-    """
-    Immutable record for one biomass pellet type.
-
-    Attributes
-    ----------
-    name         : human-readable identifier
-    gcv_min_kcal : conservative (minimum) GCV in kcal/kg  [worst-case for safety]
-    gcv_max_kcal : optimistic  (maximum) GCV in kcal/kg
-    category     : 'Wood', 'Agri-Waste', or 'Blended'
-    gcv_min_kj   : auto-derived — do NOT pass as constructor argument
-    gcv_max_kj   : auto-derived — do NOT pass as constructor argument
-    """
-    name:        str
-    gcv_min_kcal: float
-    gcv_max_kcal: float
-    category:    str
-    gcv_min_kj:  float = field(init=False)
-    gcv_max_kj:  float = field(init=False)
-
-    def __post_init__(self) -> None:
-        if not self.name.strip():
-            raise ValueError("PelletType.name must not be empty.")
-        if self.gcv_min_kcal <= 0:
-            raise ValueError(f"[{self.name}] gcv_min_kcal must be > 0, got {self.gcv_min_kcal}")
-        if self.gcv_max_kcal < self.gcv_min_kcal:
-            raise ValueError(
-                f"[{self.name}] gcv_max_kcal ({self.gcv_max_kcal}) must be >= "
-                f"gcv_min_kcal ({self.gcv_min_kcal})"
-            )
-        if self.category not in {"Wood", "Agri-Waste", "Blended"}:
-            raise ValueError(
-                f"[{self.name}] category must be 'Wood', 'Agri-Waste', or 'Blended', "
-                f"got {self.category!r}"
-            )
-        object.__setattr__(self, "gcv_min_kj", self.gcv_min_kcal * KCAL_TO_KJ)
-        object.__setattr__(self, "gcv_max_kj", self.gcv_max_kcal * KCAL_TO_KJ)
+    def __init__(self, name, gcv_min_kcal, gcv_max_kcal, category):
+        self.name = name
+        self.gcv_min_kcal = gcv_min_kcal
+        self.gcv_max_kcal = gcv_max_kcal
+        self.category = category
+        self.gcv_min_kj = gcv_min_kcal * 4.184
+        self.gcv_max_kj = gcv_max_kcal * 4.184
 
     @property
-    def conservative_gcv_kj(self) -> float:
+    def conservative_gcv_kj(self) :
         """GCV used in all energy calculations — minimum (worst-case / most pellets)."""
         return self.gcv_min_kj
 
@@ -167,18 +136,18 @@ _RAW_DATA: list[tuple[str, int, int, str]] = [
 ]
 
 
-PELLET_DB: dict[str, PelletType] = {
+PELLET_DB = {
     name: PelletType(name=name, gcv_min_kcal=lo, gcv_max_kcal=hi, category=cat)
     for name, lo, hi, cat in _RAW_DATA
 }
 
 
-def get_pellet_names() -> list[str]:
+def get_pellet_names() :
     """Return sorted list of available pellet type names."""
     return sorted(PELLET_DB.keys())
 
 
-def get_pellet(pellet_name: str) -> PelletType:
+def get_pellet(pellet_name) :
     """Return a PelletType by name, raising KeyError if unknown."""
     if pellet_name not in PELLET_DB:
         raise KeyError(
@@ -188,6 +157,6 @@ def get_pellet(pellet_name: str) -> PelletType:
     return PELLET_DB[pellet_name]
 
 
-def get_conservative_gcv_kj(pellet_name: str) -> float:
+def get_conservative_gcv_kj(pellet_name) :
     """Return the conservative (minimum) GCV in kJ/kg for energy calculations."""
     return get_pellet(pellet_name).conservative_gcv_kj

@@ -60,6 +60,13 @@ led.value(0)
 
 buzzer = machine.PWM(machine.Pin(27), freq=1000, duty=0)
 
+def _pwm_duty(pwm, value_10bit):
+    """Use the API exposed by the installed MicroPython firmware."""
+    if hasattr(pwm, "duty_u16"):
+        pwm.duty_u16(int(value_10bit * 65535 // 1023))
+    else:
+        pwm.duty(value_10bit)
+
 
 # =============================================================================
 # ENCODER STATE (volatile — modified by ISR)

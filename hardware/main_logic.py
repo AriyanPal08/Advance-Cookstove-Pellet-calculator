@@ -1,5 +1,4 @@
 import math
-import math
 """
 main_logic.py
 1Hz Discrete Transient Biomass Cookstove Simulator  — Version 5
@@ -136,21 +135,19 @@ in this file.
 =============================================================================
 SOURCES
 =============================================================================
-[1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 214-222.
+[1] MacCarty et al. (2010). Energy Sustain. Dev., 14(3), 161-171.
 [2] NIST WebBook — Aluminium thermophysical properties.
 [3] Incropera et al. (2007). Fundamentals of Heat and Mass Transfer, 7th ed.
     [Table 7.x: representative convection coefficients used for the wind
     factor tiers — still air ≈10 W/m²K; low/medium/high forced convection
     ranges ≈20-50 W/m²K for cylinders in cross-flow.]
-[4] WBT v4.2.3 (2017). Clean Cooking Alliance. [Lid factor reference]
+[4] WBT v4.2.3 (2014). Clean Cooking Alliance. [Lid factor reference]
 [5] Choi & Okos (1986); ICMR-NIN (2017). [food_db.py Cp_food sourcing]
 """
 
 
 import math
 import sys
-import datetime
-from pathlib import Path
 
 from food_db    import FOOD_DB, DishProfile, get_dish_names
 from pellet_db  import PELLET_DB, PelletType, get_pellet_names
@@ -184,7 +181,7 @@ NO experimentally calibrated stove parameters belong here.
 SIGMA = 5.67e-8  # W/m²·K⁴ — Stefan-Boltzmann constant
 
 # Source: IAPWS / NIST Chemistry WebBook
-CP_WATER = 4.184       # kJ/kg·K — Specific heat of liquid water (~60°C)
+CP_WATER = 4.184       # kJ/kg·K — Specific heat of liquid water [IAPWS-IF97]
 L_V = 2257.0     # kJ/kg   — Latent heat of vaporization of water (1 atm)
 BOILING_POINT_WATER = 100.0  # °C  — Nominal boiling point at 1 atm
 
@@ -193,7 +190,7 @@ BOILING_POINT_WATER = 100.0  # °C  — Nominal boiling point at 1 atm
 # =============================================================================
 # Source: Incropera, DeWitt, Bergman & Lavine (Fundamentals of Heat and Mass Transfer, 7th/8th Ed.)
 # Representative convective heat-transfer coefficients (h) for indoor still-air through forced-convection conditions.
-WIND_TIERS: dict[str, float] = {
+WIND_TIERS = {
     "Indoors / Still Air":        10.0,
     "Outdoors (Low Wind)":        20.0,
     "Outdoors (Medium Wind)":     35.0,
@@ -204,7 +201,7 @@ WIND_TIERS: dict[str, float] = {
 # Source: Incropera et al. Table A.11 / NIST
 EMISSIVITY_ALUMINUM_OXIDIZED = 0.35
 EMISSIVITY_CAST_IRON = 0.65
-EMISSIVITY_STAINLESS_STEEL = 0.50
+EMISSIVITY_STAINLESS_STEEL = 0.25
 
 """
 calibration.py
@@ -219,23 +216,29 @@ Tadka Chulha biomass pellet cookstove used by IIT Delhi for research purposes.
 # =============================================================================
 
 # OVERALL STOVE THERMAL EFFICIENCY
-# Source: Published experimental WBT measurements on the Tadka Chulha.
-# Justification: Represents the overall thermal efficiency of the complete stove. 
-# Intentionally combines combustion efficiency, flame interception, thermal transfer, 
-# and unavoidable losses into a single experimentally validated engineering parameter.
+# Calibrated maximum thermal efficiency for the target stove.  This is a
+# stove-specific experimental parameter, not a universal literature constant.
+# It must be reported with its test protocol, fuel moisture/basis, vessel,
+# load, ambient conditions, number of replicates, and uncertainty.
 STOVE_THERMAL_EFFICIENCY = 0.47
 
 # PRESSURE COOKER KINETIC REDUCTION FACTOR
-# Source: IIT Delhi experimental cook times combined with theoretical Arrhenius Equation 
-# (120°C vs 100°C for starch gelatinization).
-# Justification: Brings simulated 2L PC Rice (4 pax) cook time down to experimentally 
-# validated limits (~13.5 min) without breaking physics.
+# Provisional stove-and-recipe calibration parameter.  It is not a universal
+# Arrhenius result and must not be cited as one.  Retain it only for the
+# validated cooker/recipe condition until a pressure-temperature model and
+# replicated cooking tests are available.
 PRESSURE_POST_BOIL_FACTOR = 0.20
 
 # LID EVAPORATION ESCAPE COEFFICIENT (Covered, Unsealed Pot)
-# Source: Calibrated to WBT 4.2.3 covered-pot metrics.
-# Justification: Represents the fractional area or escape rate of steam when a standard lid is placed on a pot.
+# Provisional empirical coefficient. WBT v4.2.3 does not supply a universal
+# covered-pot evaporation coefficient; calibrate this value for the actual
+# lid and vessel, or present covered-lid results as scenario estimates.
 LID_ESCAPE_COEFFICIENT_ON = 0.15
+
+# Backwards-compatible aliases used by the ESP32 interface.  Keeping these
+# aliases prevents UI code from silently using a different lid coefficient.
+LID_FACTOR_ON = LID_ESCAPE_COEFFICIENT_ON
+LID_FACTOR_OFF = 1.0
 
 # MECHANICAL FEED LIMIT
 # Source: Tadka Chulha blower / auger maximum feed rate.
@@ -250,7 +253,6 @@ for the built-in validation framework. It separates experimental
 ground-truth data from the simulator physics engine.
 """
 
-from typing import TypedDict, Optional
 
 
 # Ground truth datasets from IIT Delhi Tadka Chulha experiments
@@ -624,7 +626,7 @@ def _prompt_int(msg, default, lo = 1) -> int:
         except KeyboardInterrupt:
             _quit_or_continue()
 
-def _menu(title, options: list[str]) -> int:
+def _menu(title, options):
     _sec(title)
     for i, opt in enumerate(options, 1):
         print(_c(f"    [{i}]  {opt}", WHT))
@@ -1175,9 +1177,11 @@ def post_process(inp: dict) :
     inp["procurement_margin_pct"]    = procurement_margin * 100.0
     inp["margin_reason"]             = margin_reason
 
-    inp["t_phase1_s"] = 0.15 * t_elapsed
-    inp["t_phase2_s"] = 0.65 * t_elapsed
-    inp["t_phase3_s"] = 0.20 * t_elapsed
+    t_boil_s = inp.get("t_boil_reached_s") or inp.get("t_heat_est_s", t_elapsed * 0.5)
+    t_kinetic = inp.get("t_kinetic_base_s", 0.0)
+    inp["t_phase1_s"] = t_boil_s
+    inp["t_phase2_s"] = min(t_kinetic, max(0.0, t_elapsed - t_boil_s))
+    inp["t_phase3_s"] = max(0.0, t_elapsed - t_boil_s - inp["t_phase2_s"])
 
     # ── Structured research outputs dict (for reporting / export) ─────────────
     # Callers can access inp["research_outputs"] directly for validation,

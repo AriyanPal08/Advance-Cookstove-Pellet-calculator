@@ -38,9 +38,9 @@
 # SOURCES:
 # [1] Choi & Okos (1986). Food Eng. Process Appl., 1, 93-101.
 # [2] ICMR-NIN (2017). Indian Food Composition Tables (IFCT 2017).
-# [3] CSIR-CFTRI (2020). Processing Profiles for Indigenous Grains.
+# [3] CSIR-CFTRI Mysuru — Technology transfer profiles for grain processing.
 # [4] CCT Protocol v2.0 (2014). Clean Cooking Alliance / Aprovecho.
-# [5] Singh (2007). Hydration kinetics of chickpea and blackgram.
+# [5] Prasad, Vairagar & Bera (2010). J. Food Eng., 97, 56–61.
 # [6] McGee, H. (2004). On Food and Cooking, 2nd ed. Scribner.
 # [7] Ofstad et al. (1996). Myosin denaturation in fish muscle.
 # [8] USDA FoodData Central (2019). SR Legacy / Foundation Foods releases.
@@ -48,7 +48,7 @@
 # =============================================================================
 
 # Cp of water at T=60 C midpoint [Choi & Okos 1986]
-CP_WATER_KJ_KGK = 4.171
+CP_WATER_KJ_KGK = 4.184  # kJ/kg·K [IAPWS-IF97]
 DELTA_T_K = 75.0   # 100 C - 25 C ambient
 
 

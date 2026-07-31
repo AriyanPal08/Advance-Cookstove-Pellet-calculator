@@ -1,91 +1,124 @@
 # Advanced Biomass Cookstove Pellet Calculator
 
-A high-fidelity thermodynamic modeling tool developed at IIT Delhi (Department of Energy Studies) to estimate biomass pellet fuel requirements for forced-draft cookstoves.
+A physics-informed, stove-specific decision-support prototype for estimating
+pellet loading and cooking duration on the **Tadka Chulha** forced-draft
+biomass pellet stove. The prototype has been tested in the laboratory of the
+Department of Energy Science and Engineering (DESE), IIT Delhi.
+It is designed to keep the interaction simple enough for day-to-day users:
+choose a dish, amount, utensil, pellet, lid state, and environment; the
+calculator produces a suggested cooking duration and pellet-load range.
 
-Moving beyond standard static energy balances, this simulator utilizes a **1Hz Discrete Transient State Machine** to calculate second-by-second energy routing, accounting for real-world environmental wind, vessel materials, pressure cooker dynamics, and precise culinary kinetics.
+## Research position
 
-Originally a CLI engine, the project has now evolved into a comprehensive ecosystem featuring a **Full-Stack Web Application**, an **Automated Environmental API**, and an **ESP32 Hardware Module**.
+This repository supports a prototype research paper. The appropriate claim is:
 
----
+> A physics-informed, experimentally calibrated decision-support prototype for
+> the Tadka Chulha forced-draft pellet cookstove, tested in the DESE laboratory
+> at IIT Delhi.
 
-## System Architecture
+It is **not** a universally validated prediction model for all stoves, foods,
+pellets, cookware, weather, or operating practices. Recommendations should be
+used only within the input ranges and operating conditions validated for the
+target stove. Users must supervise cooking and stop if food quality or safety
+indicators are unsuitable.
 
-The Tadka Chulha software ecosystem consists of three primary modules:
+The model uses a calibrated maximum stove thermal efficiency of 0.47 and a
+measured high-feed setting of 0.78 kg/h. These are target-stove parameters,
+not universal constants. Any research paper must report their experimental
+test conditions, fuel basis, replicate count, and uncertainty.
 
-### 1. Full-Stack Web Application
-- **Frontend (UI/UX)**: A responsive, state-driven wizard interface built with GPU-accelerated CSS. Features include a sleek Glassmorphism design, Dark Mode toggles, smooth scroll optimizations, and a seamless, zero-reload bi-directional Google Translate integration (English/Hindi).
-- **Backend (Flask API)**: A robust Python backend (`app.py`) that securely encapsulates the core physics engine and databases. The frontend asynchronously queries the `/api/simulate` endpoint to run the intensive 1Hz physics simulation loop.
-- **Zero-Billing Weather Integration**: The backend automatically resolves geolocation via the Open-Meteo API to fetch live ambient temperatures and wind speeds, intelligently mapping them to internal convective physics tiers to bypass manual user data entry.
+## What the model calculates
 
-### 2. ESP32 Hardware Integration (MicroPython)
-- **LCD Interface**: Features a fully refactored 16x2 LCD UI with robust buffer overflow checks to ensure strings never exceed hardware limits.
-- **Dynamic Pellet Range Output**: Calculates and displays an advanced min-max pellet load range (e.g., `56m 721-779g`), matching the precise outputs of the web engine.
-- **Audio Integration**: Includes a PWM-driven piezo buzzer with custom boot jingles (Tokyo Drift synth riff) and alert handlers.
+The solver advances one-second time steps. At each step it calculates:
 
-### 3. Production Deployment (Docker)
-The system is fully containerized for production deployment.
-- Runs via a lightweight `Dockerfile` (Python base image) and `docker-compose.yml`.
-- Leverages `gunicorn` with optimized worker threading and proxy headers for safe mixed-content routing behind reverse proxies.
+1. Thermal power delivered from the selected pellet's energy value, the fixed
+   high-feed setting, and the calibrated maximum efficiency.
+2. The combined thermal mass of food, added water, and utensil.
+3. Convective and radiative losses from a geometry-based vessel surface area.
+4. Sensible heating before boiling, followed by evaporation and dry-boil
+   safety tracking.
+5. A time-based pellet-load recommendation:
 
----
+   `pellets_g = cook_time_h × 0.78 kg/h × 1000 × reserve factor`
 
-## Core Engine: The 1Hz Transient Physics Loop
+The reserve factor is an operational allowance for real-world variation. It is
+not yet a measured statistical uncertainty interval.
 
-The underlying engine operates in three distinct computational phases to eliminate human input error and mathematically protect the conservation of energy.
+## Inputs that remain empirical
 
-### Phase 1: State Initialization & Total Time Estimator
-Rather than asking the user to guess how long a dish takes to cook, the engine pre-calculates the thermodynamic limits based on the environment:
-- **Database Lookups**: Pulls specific heat ($C_p$), mass, and kinetic simmering times from `food_db.py` and `utensil_db.py`.
-- **Environmental Inputs**: Applies user-defined or API-fetched wind factors (Newtonian Convection $h$) and ambient temperature.
-- **Geometry Derivation**: Reverse-engineers the pot's surface area ($A_{m2}$) and geometric efficiency coupling ($\eta_{geom}$) based on the water volume.
-- **The Estimator**: Calculates a projected heat-up time ($t_{heat}$) by evaluating the vessel's thermal mass against the stove's available power minus the average convective/radiative heat bleed. It adds this to the culinary simmer time to suggest a Total Cooking Time.
+Some inputs are scenario or calibration parameters, rather than universal
+physical constants:
 
-### Phase 2: The 1Hz Transient Loop
-The engine runs a `while t_elapsed < t_total` loop, updating the state of the pot every 1.0 seconds.
-- **Step 2A (Power In)**: The stove delivers a constant baseline of thermal energy based on the mechanical High Fan feed rate ($0.78 \text{ kg/hr}$).
-- **Step 2B (Dynamic Mass)**: Calculates $MC_{p,total}$ (Food + Water + Metal).
-- **Step 2C (Heat Bleed)**: Calculates exact Heat Loss ($Q_{out}$) using real-time pot temperature, ambient temperature, surface area, and dynamic wind factors.
-- **Step 2D (Net Energy Routing)**: The engine subtracts heat bleed from heat applied ($Q_{avail} = Q_{in} - Q_{out}$) and cascades the remaining energy:
-  - **Route A (Sensible Heating)**: If $T_{pot} < 100^\circ\text{C}$, energy raises the water temperature.
-  - **Route B (Evaporation)**: If $T_{pot} = 100^\circ\text{C}$, energy converts liquid water to steam, accounting for lid retention factors.
-  - **Route C (Safety Break)**: If water boils dry ($m_{water} \le 0$), the 100°C lock breaks, triggering a severe overheat warning.
+- Lid-on evaporation coefficient (`0.15`): provisional and vessel/lid specific.
+- Pressure-cooker kinetic reduction (`0.20`): provisional and recipe/stove specific.
+- Wind tiers: assumed heat-transfer scenarios, not direct wind-speed measurements.
+- Food preparation stages and cooking durations: recipe presets.
+- Pellet heating values: material ranges that require a declared HHV/LHV and
+  moisture basis for formal reporting.
 
-### Phase 3: Post-Processing & Output
-The system generates a comprehensive diagnostic receipt, slicing the elapsed time into an academic 3-Phase Combustion Model (15% Ignition, 65% Steady State, 20% Radiant Char) and calculating the final physical pellet requirement using the Safe Overestimate Rule.
+These assumptions are retained because they make the tool practical, but they
+must be reported honestly and calibrated with controlled tests before making
+general performance claims.
 
----
+## Interfaces
 
-## Mathematical Formulas & Constants
+### Website
 
-### 1. Convective & Radiative Heat Bleed ($Q_{out}$)
-Calculated every second using the Stefan-Boltzmann law and Newtonian cooling:
+The Flask web application presents the same calculation setup used by the
+hardware-matched adapter. It provides the accessible day-to-day interface and
+uses simple dish, utensil, lid, pellet, and environmental selections.
 
-$$P_{conv} = h \cdot A \cdot (T_{pot} - T_{amb}) \cdot \text{Lid Factor}$$
+### ESP32 interface
 
-$$P_{rad} = \epsilon \cdot \sigma \cdot A \cdot (T_{pot}^4 - T_{amb}^4)$$
+`hardware/main.py` provides a 16×2 LCD and rotary-encoder interface intended
+for an ESP32 running MicroPython. It retains the same database values and core
+calculation equations as the software path. Flashing and on-device testing are
+still required after every firmware or MicroPython-version change.
 
-- **Wind Factor ($h$)**: 10.0 (Indoors), 20.0 (Low Wind), 35.0 (Medium Wind), 50.0 (High Wind)
-- **Stefan-Boltzmann ($\sigma$)**: $5.67 \times 10^{-8} \text{ W/m}^2\text{K}^4$
+### Core data and model files
 
-### 2. Evaporative Mass Loss ($m_{evap}$)
-During the boiling phase, available energy is converted to steam:
+- `main_logic.py` — desktop physics engine and terminal interface.
+- `food_db.py` — recipe presets and food-property estimates.
+- `pellet_db.py` — pellet energy ranges.
+- `utensil_db.py` — utensil mass, material, and geometry records.
+- `software/hardware_adapter.py` — website adapter that loads the hardware
+  calculation source for parity.
 
-$$m_{evap} = \left(\frac{Q_{avail}}{L_V}\right) \times \text{Lid Factor}$$
+## Validation and publication readiness
 
-- **Latent Heat of Vaporization ($L_V$)**: $2257 \text{ kJ/kg}$
-- **Lid Factors**: 1.00 (Lid Off), 0.15 (Lid On), 0.00 (Sealed Pressure Cooker)
+Initial observed cooking trials are encouraging, but they are preliminary and
+must not be presented as a complete validation dataset. A paper should report
+both successful and failed trials, including quality outcomes such as burning.
 
-### 3. Final Fuel Calculation (The "Safe Overestimate" Rule)
-To prevent the engine from artificially deleting energy when a sealed pressure cooker rejects heat transfer, the final pellet mass is calculated via the absolute elapsed time clock alongside procurement margins:
+For every future test, record:
 
-$$\text{Pellets (g)} = \left(\frac{t_{elapsed}}{3600}\right) \times \text{FAN\_HIGH} \times 1000 \times \text{Margin}$$
+- exact dish and amount;
+- food and added-water mass;
+- utensil model, mass, and dimensions;
+- pellet type, moisture, and heating-value basis;
+- ambient condition and fan/feed setting;
+- predicted and measured time and pellet mass; and
+- cooking endpoint and quality outcome.
 
-- **FAN_HIGH (Mechanical Feed Limit)**: $0.78 \text{ kg/hr}$
+Run at least three replicates per condition before reporting accuracy metrics.
+Private experiment logs and audit notes are intentionally excluded from Git.
 
----
+## Sources and terminology
 
-## Developers
-- **Ariyan Pal** (Lead Developer)
-- **Yash Tyagi** (Co-Developer & Contributor)
+- Water properties and WBT methodology: Clean Cooking Alliance, Water Boiling
+  Test v4.2.3.
+- Food-property methodology: Choi and Okos (1986), with composition data from
+  IFCT 2017 and USDA FoodData Central where applicable.
+- Wood-pellet specification standard: ISO 17225-2:2021. This standard covers
+  graded wood pellets only; it is not a direct source for all agricultural,
+  RDF, or torrefied pellet entries.
 
-Developed for the IIT Delhi Department of Energy Studies.
+For each pellet record used in a manuscript, declare whether its value is
+HHV/GCV, LHV/NCV, or as-received effective heating value, together with the
+moisture basis.
+
+## Development status
+
+The project contains a website, desktop terminal engine, ESP32-oriented UI,
+and Docker deployment configuration. This is an active prototype; do not use
+it as an unattended cooking controller or as a safety-critical device.
