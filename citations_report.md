@@ -56,8 +56,8 @@ This document outlines the exact citation for every scientific claim, standard, 
 
 ## 3. Core Physics Engine & Utensils (`main_logic.py` & `utensil_db.py`)
 
-**15. Tyagi, S.K. (2022). Biomass Pellet Based Combustion Devices. Indian Patent No. 397919. Granted May 27, 2022.**
-*   **How we have used it:** This patent is the explicit, direct source for the calibrated maximum thermal efficiency constant (`STOVE_THERMAL_EFFICIENCY = 0.47`) of the IIT Delhi Tadka Chulha stove modeled in the transient physics loop.
+**15. Himanshu; Pal, K.; Jain, Sanjeev; et al. (2022). Energy and exergy analysis and emission reduction from forced draft gasifier cookstove models: a comparative study. Journal of Thermal Analysis & Calorimetry, 147(15), 8509. doi:10.1007/s10973-021-11137-**
+*   **How we have used it:** This paper is the explicit, direct source for the calibrated maximum thermal efficiency constant (`STOVE_THERMAL_EFFICIENCY = 0.47`) of the IIT Delhi Tadka Chulha stove modeled in the transient physics loop.
 
 **16. Incropera, F.P., et al. (2007). Fundamentals of Heat and Mass Transfer (7th ed.).**
 *   **How we have used it:** Sourced for the standard heat transfer coefficients (Table A.11). We use these exact ranges to calculate convection losses based on wind tiers (Still air = 10 W/m²·K, High wind = 50 W/m²·K), as well as setting thermal radiation emissivity limits for oxidized metals.
