@@ -113,3 +113,6 @@ docker-compose.override.yml
 # MicroPython third-party libraries
 lcd_api.py
 esp8266_i2c_lcd.py
+
+# PDF Reports
+*.pdf
