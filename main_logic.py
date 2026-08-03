@@ -222,6 +222,7 @@ Tadka Chulha biomass pellet cookstove used by IIT Delhi for research purposes.
 # stove-specific experimental parameter, not a universal literature constant.
 # It must be reported with its test protocol, fuel moisture/basis, vessel,
 # load, ambient conditions, number of replicates, and uncertainty.
+# SOURCE IS TAKEN FROM Tyagi, S.K. (2022) Biomass Pellet Based Combustion Devices, Indian Patent No. 397919, Ref. No. 201811019556/2018, Granted May 27, 2022.
 STOVE_THERMAL_EFFICIENCY = 0.47
 
 # PRESSURE COOKER KINETIC REDUCTION FACTOR
