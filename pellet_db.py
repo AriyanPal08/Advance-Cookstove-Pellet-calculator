@@ -29,12 +29,12 @@ SOURCES
 [1] ISO 17225-2:2021. Solid biofuels — Fuel specifications and classes —
     Part 2: Graded wood pellets.
 [2] ENplus A1/A2 Certification Standard. European Pellet Council.
-[3] Nanthisiriporn et al. (2024). Performance optimization of natural updraft
-    gasifier stoves. ScienceDirect.
-[4] ScienceDirect (2019). Production and characterisation of fuel pellets from
-    rice husk and wheat straw. DOI: 10.1016/j.biosystemseng.2019.08.006
+[3] Cansee et al. (2024). Performance optimization of natural updraft
+    gasifier stoves. Energy Nexus.
+[4] Ríos-Badrán et al. (2020). Production and characterisation of fuel pellets from
+    rice husk and wheat straw. Renewable Energy. DOI: 10.1016/j.renene.2019.06.048
 [5] Napier Grass India GCV database. https://napiergrass.in (2024).
-[6] ResearchGate (2017). Sugarcane bagasse pellets: characterisation and
+[6] Almeida et al. (2017). Sugarcane bagasse pellets: characterisation and
     comparative analysis. Acta Sci. Technol., 39(4), 461-468.
 """
 
