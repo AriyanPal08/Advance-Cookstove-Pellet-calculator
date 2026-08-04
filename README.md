@@ -1,4 +1,4 @@
-# Advanced Biomass Cookstove Pellet Calculator
+# Evaluation of fuel requirements w.r.t. food cooking and operation time using biomass pellet cookstove under the department of DESE IIT DELHI
 
 A physics-informed, stove-specific decision-support prototype for estimating
 pellet loading and cooking duration on the **Tadka Chulha** forced-draft
