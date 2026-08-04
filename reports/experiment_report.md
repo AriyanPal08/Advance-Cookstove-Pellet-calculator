@@ -129,12 +129,6 @@ This graph illustrates the temporal accuracy of the model. Note the strict align
   <img src="./images/detailed_time_comparison.png" alt="Time Comparison" width="800">
 </p>
 
-### 3.2. Pellet Consumption Efficiency
-This compares the theoretical pellet requirement (derived from `Suggested Time × 13 g/min`) against the actual pellet mass consumed during the experiment. 
-
-<p align="center">
-  <img src="./images/detailed_pellet_comparison.png" alt="Pellet Comparison" width="800">
-</p>
 
 ---
 
