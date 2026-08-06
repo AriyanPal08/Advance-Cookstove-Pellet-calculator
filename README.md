@@ -122,3 +122,5 @@ moisture basis.
 The project contains a website, desktop terminal engine, ESP32-oriented UI,
 and Docker deployment configuration. This is an active prototype; do not use
 it as an unattended cooking controller or as a safety-critical device.
+
+**Note:** A custom PCB and a 3D-printed enclosure box for the hardware module are coming soon!
