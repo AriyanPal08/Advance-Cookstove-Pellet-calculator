@@ -1,12 +1,17 @@
 # Evaluation of fuel requirements w.r.t. food cooking and operation time using biomass pellet cookstove under the department of DESE IIT DELHI
 
-A physics-informed, stove-specific decision-support prototype for estimating
-pellet loading and cooking duration on the **Tadka Chulha** forced-draft
-biomass pellet stove. The prototype has been tested in the laboratory of the
-Department of Energy Science and Engineering (DESE), IIT Delhi.
-It is designed to keep the interaction simple enough for day-to-day users:
-choose a dish, amount, utensil, pellet, lid state, and environment; the
-calculator produces a suggested cooking duration and pellet-load range.
+**Project Team:** Ariyan Pal, Yash Tyagi, and Himanshu Kumar  
+**Guided by:** Prof. S.K. Tyagi  
+**Mentored by:** S.P. Parameshwaran  
+
+## Project Overview
+
+This repository contains a physics-informed, stove-specific decision-support prototype for estimating pellet loading and cooking duration on the **Tadka Chulha** forced-draft biomass pellet stove. The prototype has been extensively tested in the laboratory of the Department of Energy Science and Engineering (DESE), IIT Delhi.
+
+The primary objective of this project is to accurately evaluate the fuel requirements and operation time for various daily cooking tasks using biomass pellet cookstoves. To achieve this, the project provides a comprehensive ecosystem consisting of:
+1. **A mathematical physics engine** that simulates transient energy transfer during cooking.
+2. **A user-friendly web application** for day-to-day users to easily estimate cooking duration and pellet-load ranges by selecting a dish, utensil, pellet type, and environmental conditions.
+3. **An embedded hardware interface (ESP32)** designed to run the same predictive model directly on the physical stove.
 
 ## Research position
 
