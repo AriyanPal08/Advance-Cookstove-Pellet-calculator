@@ -1,18 +1,5 @@
 # =============================================================================
-# hardware/main.py — ESP32 MicroPython Master Boot Script
-# IIT Delhi | 1Hz Transient Biomass Cookstove Simulator | Hardware Interface
-#
-# HARDWARE WIRING:
-#   I2C LCD 16x2:  SDA=21, SCL=22
-#   KY-040 Encoder: CLK=32, DT=33, SW=25 (all Pin.PULL_UP)
-#   LED:           Pin 26
-#   Buzzer:        Pin 27 (PWM)
-#
-# ALARM BEHAVIORS:
-#   Tick Feedback:   10ms LED blink + 10ms 1kHz beep
-#   Success Alarm:   Timer countdown finished (continuous 1kHz siren + LED)
-#   Danger Alarm:    Continuous alternating 800/1200Hz siren + rapid LED toggle
-#   Invalid Alarm:   3 rapid flashes + beeps for impossible combinations
+
 # =============================================================================
 
 import machine
@@ -26,10 +13,9 @@ from utensil_db import (UTENSIL_DB, get_utensil_names, get_utensil,
 import main_logic
 
 # =============================================================================
-# HARDWARE PIN SETUP — WITH ERROR HANDLING
+
 # =============================================================================
 
-# I2C LCD with fallback
 lcd = None
 try:
     i2c = machine.I2C(0, sda=machine.Pin(21), scl=machine.Pin(22), freq=400000)
@@ -40,17 +26,16 @@ try:
     LCD_COLS = 16
     lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
 except Exception as e:
-    # LCD initialization failed — use buzzer to alert user
+
     buzzer_pin = machine.PWM(machine.Pin(27), freq=1000, duty=0)
     for _ in range(5):
         buzzer_pin.duty(512)
         time.sleep_ms(200)
         buzzer_pin.duty(0)
         time.sleep_ms(200)
-    # Crash with info
+
     raise Exception("LCD Init Failed: " + str(e))
 
-# Encoder setup (should always work)
 enc_clk = machine.Pin(32, machine.Pin.IN, machine.Pin.PULL_UP)
 enc_dt  = machine.Pin(33, machine.Pin.IN, machine.Pin.PULL_UP)
 enc_sw  = machine.Pin(25, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -61,15 +46,14 @@ led.value(0)
 buzzer = machine.PWM(machine.Pin(27), freq=1000, duty=0)
 
 def _pwm_duty(pwm, value_10bit):
-    """Use the API exposed by the installed MicroPython firmware."""
+
     if hasattr(pwm, "duty_u16"):
         pwm.duty_u16(int(value_10bit * 65535 // 1023))
     else:
         pwm.duty(value_10bit)
 
-
 # =============================================================================
-# ENCODER STATE (volatile — modified by ISR)
+
 # =============================================================================
 
 _enc_pos = 0
@@ -115,13 +99,12 @@ def was_pressed():
         return True
     return False
 
-
 # =============================================================================
-# LED & BUZZER ALARM SYSTEM
+
 # =============================================================================
 
 def tick_feedback():
-    """Tactile feedback: 10ms LED blink + 10ms 1kHz beep."""
+
     led.value(1)
     buzzer.freq(1000)
     buzzer.duty(512)
@@ -130,7 +113,7 @@ def tick_feedback():
     led.value(0)
 
 def warn_alarm():
-    """Soft advisory warning: 2 medium beeps + LED. Less severe than invalid_combo_alarm."""
+
     global _enc_pressed
     _enc_pressed = False
     for _ in range(2):
@@ -146,7 +129,7 @@ def warn_alarm():
     tick_feedback()
 
 def invalid_combo_alarm():
-    """Invalid setup alarm: 3 rapid blinks + 1500Hz beeps. Hard block."""
+
     global _enc_pressed
     _enc_pressed = False
     for _ in range(3):
@@ -162,10 +145,7 @@ def invalid_combo_alarm():
     tick_feedback()
 
 def timer_alarm():
-    """
-    Time-over cooking alarm: continuous 1kHz siren + rapid LED toggle.
-    Runs until button press acknowledgment.
-    """
+
     global _enc_pressed
     _enc_pressed = False
     while True:
@@ -182,10 +162,7 @@ def timer_alarm():
         time.sleep_ms(200)
 
 def danger_alarm():
-    """
-    Protection/Danger alarm: continuous alternating 800/1200Hz siren
-    with rapid LED flashing. Runs until button press acknowledgment.
-    """
+
     global _enc_pressed
     _enc_pressed = False
     freq_a = 800
@@ -205,53 +182,46 @@ def danger_alarm():
         toggle = not toggle
         time.sleep_ms(100)
 
-
 def boot_jingle():
-    """Plays the shortened Tokyo Drift tab on boot."""
-    # Frequencies (Hz)
+
     A_S = 466; B = 494; D_S = 622
     F = 698; F_S = 740; G_S = 831
-    R = 0 # Musical Rest
+    R = 0 
 
-    # Timings (Sped up for a punchy ~10 second intro)
     T_LONG = 300
     T_SHORT = 175
-    P_SHORT = 60   # Pause between notes
-    P_LONG = 200   # Pause between phrases
+    P_SHORT = 60   
+    P_LONG = 200   
 
-    # Riff 1: A# B D# A# A#
     riff_main = [
         (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
         (D_S, T_SHORT), (R, P_SHORT), (A_S, T_LONG), (R, P_SHORT),
         (A_S, T_LONG), (R, P_LONG)
     ]
 
-    # Riff 2: A# B D# F F
     riff_alt1 = [
         (A_S, T_LONG), (R, P_SHORT), (B, T_SHORT), (R, P_SHORT),
         (D_S, T_SHORT), (R, P_SHORT), (F, T_LONG), (R, P_SHORT),
         (F, T_LONG), (R, P_LONG)
     ]
 
-    # Riff 3: G# F# F D# D#
     riff_alt2 = [
         (G_S, T_LONG), (R, P_SHORT), (F_S, T_SHORT), (R, P_SHORT),
         (F, T_SHORT), (R, P_SHORT), (D_S, T_LONG), (R, P_SHORT),
         (D_S, T_LONG), (R, P_LONG)
     ]
 
-    # Assemble the shortened tab sequence
     melody = []
-    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
-    melody.extend(riff_alt1)                     # A# B D# F F
-    for _ in range(2): melody.extend(riff_alt2)  # G# F# F D# D# (x2)
-    for _ in range(2): melody.extend(riff_main)  # A# B D# A# A# (x2)
+    for _ in range(2): melody.extend(riff_main)  
+    melody.extend(riff_alt1)                     
+    for _ in range(2): melody.extend(riff_alt2)  
+    for _ in range(2): melody.extend(riff_main)  
 
     # Playback loop with Encoder Button Skip Feature
     for freq, duration in melody:
         if was_pressed(): 
-            break # Skip the rest of the song if knob is clicked
-            
+            break 
+
         if freq == 0:
             buzzer.duty(0)
             led.value(0)
@@ -264,12 +234,8 @@ def boot_jingle():
     buzzer.duty(0)
     led.value(0)
 
-
 def boil_milestone_blip():
-    """
-    Single double-beep + LED flash when boiling point is first reached.
-    Called once mid-simulation as a progress milestone.
-    """
+
     for _ in range(2):
         led.value(1)
         buzzer.freq(880)
@@ -279,26 +245,16 @@ def boil_milestone_blip():
         led.value(0)
         time.sleep_ms(60)
 
-
 def heartbeat_tick():
-    """
-    Double-blink LED only (no buzzer). Called in the last 60 s of cooking
-    to give a visible "almost done" pulse without waking people up.
-    """
+
     for _ in range(2):
         led.value(1)
         time.sleep_ms(60)
         led.value(0)
         time.sleep_ms(80)
 
-
 def pellet_load_flash(pellets_g):
-    """
-    Flash LED to indicate pellet load tier after results are shown:
-      1 flash  = light  (< 200 g)
-      2 flashes = medium (200–599 g)
-      3 flashes = heavy  (≥ 600 g)
-    """
+
     if pellets_g < 200:
         flashes = 1
     elif pellets_g < 600:
@@ -315,9 +271,8 @@ def pellet_load_flash(pellets_g):
         led.value(0)
         time.sleep_ms(200)
 
-
 # =============================================================================
-# LCD HELPER FUNCTIONS
+
 # =============================================================================
 
 def lcd_clear():
@@ -338,25 +293,13 @@ def lcd_write_line(row, text):
     lcd.putstr(("{:<" + str(LCD_COLS) + "}").format(text[:LCD_COLS]))
 
 def fmt_trunc(text, width=14):
-    text = text.replace("Aluminium Pot", "AL Pot") \
-               .replace("Aluminium", "AL") \
-               .replace("Pressure Cooker", "Cooker") \
-               .replace("Kadhai / Wok", "Kadhai") \
-               .replace("Stainless Steel", "Steel") \
-               .replace("Cast Iron", "Iron") \
-               .replace(" (Soaked Chickpea)", "") \
-               .replace(" (Soaked Red Kidney Bean)", "") \
-               .replace(" (Goat)", "") \
-               .replace(" (Chai)", "") \
-               .replace(" (RDF)", "") \
-               .replace(" Pellets", "")
+    text = text.replace("Aluminium Pot", "AL Pot")               .replace("Aluminium", "AL")               .replace("Pressure Cooker", "Cooker")               .replace("Kadhai / Wok", "Kadhai")               .replace("Stainless Steel", "Steel")               .replace("Cast Iron", "Iron")               .replace(" (Soaked Chickpea)", "")               .replace(" (Soaked Red Kidney Bean)", "")               .replace(" (Goat)", "")               .replace(" (Chai)", "")               .replace(" (RDF)", "")               .replace(" Pellets", "")
     if len(text) > width:
         return text[:width - 1] + "."
     return text
 
-
 # =============================================================================
-# INTERACTIVE MENU FUNCTIONS
+
 # =============================================================================
 
 def menu_select(title, options):
@@ -430,9 +373,8 @@ def menu_adjust_int(title, unit, default, lo, hi):
             return val
         time.sleep_ms(20)
 
-
 # =============================================================================
-# SAFETY VALIDATION LOGIC
+
 # =============================================================================
 
 UTENSIL_CAPACITY_L = {
@@ -461,38 +403,31 @@ UTENSIL_CAPACITY_L = {
     "Iron Kadhai 2L": 2.0,
 }
 
-# Per-dish utensil type preference: what utensil category is needed
 DISH_UTENSIL_PREF = {
     "Roti":   "Tawa",
     "Sambar": "Pot",
 }
 
-# Dishes that are beverages (should NOT go in pressure cooker)
 BEVERAGE_DISHES = {"Tea (Chai)", "Coffee", "Boiling Milk"}
 
-# Realistic max servings per pot capacity bucket (L)
 CAP_MAX_SERVINGS = {
-    0.5: 1,    # Cast Iron Tawa
-    1.0: 2,    # Aluminium Pot 1L
-    1.5: 2,    # Kadhai 1.5L / PC 1.5L / Frying Pan
-    2.0: 3,    # Pot 2L / Kadhai 2L / PC 2L
-    2.5: 4,    # Kadhai 2.5L
-    3.0: 5,    # PC 3L / Pot 3L
-    3.5: 6,    # Kadhai 3.5L
-    4.0: 7,    # Kadhai 4L
-    5.0: 10,   # PC 5L / Pot 5L
-    6.0: 12,   # Kadhai 6L
-    7.5: 16,   # PC 7.5L
-    8.0: 18,   # Pot 8L
-    10.0: 20,  # Pot 10L / PC 10L
+    0.5: 1,    
+    1.0: 2,    
+    1.5: 2,    
+    2.0: 3,    
+    2.5: 4,    
+    3.0: 5,    
+    3.5: 6,    
+    4.0: 7,    
+    5.0: 10,   
+    6.0: 12,   
+    7.5: 16,   
+    8.0: 18,   
+    10.0: 20,  
 }
 
 def validate_inputs(inp):
-    """
-    Check for physically impossible or illogical combinations.
-    Returns (error_key, detail_line) tuple if invalid, or None if valid.
-    Severity determines which alarm is triggered in main().
-    """
+
     utensil_name = inp["utensil_name"]
     utensil      = inp["utensil"]
     dish         = inp["dish"]
@@ -505,18 +440,10 @@ def validate_inputs(inp):
     k_conv       = inp["k_conv_current"]
     lid          = inp["lid_factor"]
 
-    # ── 1. Physical overflow (HARD) ──────────────────────────────────────────
-    # Total contents (water + food solid mass) exceed pot volume.
-    # Added a 5% tolerance to prevent trace masses (e.g. 0.001kg) from 
-    # failing an exactly full pot.
     if (water_l + food_kg) > (max_cap * 1.05):
         return ("overflow",
                 "Tot {:.1f}L > {:.1f}L pot".format(water_l + food_kg, max_cap))
 
-    # ── 2. Too many servings for the pot (HARD) ──────────────────────────────
-    # Each serving for standard dishes needs ~0.3–0.5L. Cap is derived from
-    # pot capacity. This catches "20 people in a 2L pot" scenarios.
-    # Only applies to standard per-person dishes (not smart-unit or variable).
     if not dish.qty_prompt and not dish.variable_water:
         n_int = int(n)
         hard_max = CAP_MAX_SERVINGS.get(max_cap, int(max_cap * 2))
@@ -524,33 +451,22 @@ def validate_inputs(inp):
             return ("too_many_people",
                     "{} people in {}L pot".format(n_int, max_cap))
 
-    # ── 3. Pressure Cooker with beverage (SOFT warning) ──────────────────────
-    # Boiling milk/tea/coffee in a PC makes no practical sense and risks
-    # boil-over fouling the pressure valve.
     if is_pc and dish_name in BEVERAGE_DISHES:
         return ("pc_beverage",
                 "{} in pressure cooker".format(dish_name[:14]))
 
-    # ── 4. Wrong utensil for Roti (SOFT warning) ─────────────────────────────
-    # Roti is dry-cooked on a Tawa. Using a pot or kadhai gives wrong results.
     if "Roti" in dish_name and "Tawa" not in utensil_name and "Pan" not in utensil_name:
         return ("roti_wrong_utensil",
                 "Roti needs a Tawa")
 
-    # ── 5. Pressure Cooker with too little water (HARD) ──────────────────────
-    # PCs need steam. < 0.2L means no steam can build — dangerous in reality.
     if is_pc and water_l < 0.2:
         return ("pc_dry",
                 "PC needs >= 0.2L water")
 
-    # ── 6. Open pot in high wind (SOFT warning) ───────────────────────────────
-    # Extremely wasteful — heat blows away. Physics still runs but user
-    # should know this setup wastes a lot of pellets.
     if k_conv >= 35.0 and lid == main_logic.LID_FACTOR_OFF:
         return ("wind_open",
                 "Strong wind, lid off")
 
-    # ── 7. Pot mass override is unrealistic (SOFT warning) ───────────────────
     base_mass = utensil.mass_kg
     if inp["m_pot"] > 3.0 * base_mass:
         return ("pot_heavy",
@@ -559,17 +475,12 @@ def validate_inputs(inp):
         return ("pot_light",
                 "Pot mass seems low")
 
-    # ── 8. Milk volume > utensil capacity (HARD) ─────────────────────────────
-    # Smart-unit milk: qty is in litres. Check it fits the pot.
     if dish_name == "Boiling Milk" and dish.qty_is_float:
-        milk_l = water_l + food_kg  # already scaled in collect_inputs
+        milk_l = water_l + food_kg  
         if milk_l > (max_cap * 1.05):
             return ("milk_overflow",
                     "{:.1f}L milk > {:.1f}L pot".format(milk_l, max_cap))
 
-    # ── 9. Liquid dish on a Tawa / Frying Pan (HARD) ───────────────────────
-    # Tawas and flat pans have no side walls. Any dish with >0.15 kg of
-    # water per serving will simply spill off a flat pan.
     _NEEDS_WALLS = {"Dal Tadka", "Dal Fry", "Sambar", "Chicken Curry",
                      "Egg Curry", "Fish Curry",
                      "Mix Veg Curry", "Aloo Gobi", "Aloo Matar",
@@ -580,29 +491,20 @@ def validate_inputs(inp):
                      "Boiling Milk", "Kadhai Paneer",
                      "Paneer Butter Masala"}
     _FLAT_UTENSILS = {"Cast Iron Tawa", "Cast Iron Frying Pan 26cm"}
-    # Note: Cast Iron Kadhai 2L has walls and is NOT flat
+
     if dish_name in _NEEDS_WALLS and utensil_name in _FLAT_UTENSILS:
         return ("liquid_on_tawa",
                 "Flat pan for wet dish")
 
-    # ── 10. Roti in a Pressure Cooker (HARD) ───────────────────────────────
-    # Roti is a dry flatbread. A pressure cooker seals steam inside —
-    # you cannot roast/dry-cook inside a sealed PC. The result would be
-    # soggy uncooked dough, not roti.
     if "Roti" in dish_name and is_pc:
         return ("roti_in_pc",
                 "Can't make roti in PC")
 
-    # ── 11. Plain Water Boiling in a Kadhai / Wok (SOFT warning) ────────────
-    # Kadhais are wide and shallow. Boiling large volumes of water in them
-    # leads to extreme evaporation and very fast water loss. The physics
-    # engine will still run, but the result is thermally inefficient.
     if dish_name == "Plain Water Boiling" and "Kadhai" in utensil_name:
         return ("water_in_kadhai",
                 "Kadhai not for boiling")
 
     return None
-
 
 _HARD_ERRORS = {"overflow", "too_many_people", "pc_dry", "milk_overflow",
                 "liquid_on_tawa", "roti_in_pc"}
@@ -622,9 +524,8 @@ _FRIENDLY_MSG = {
     "water_in_kadhai":   ("Use deep pot!",     "Kadhai shallow"),
 }
 
-
 # =============================================================================
-# MAIN SIMULATION FLOW
+
 # =============================================================================
 
 def collect_inputs():
@@ -652,10 +553,10 @@ def collect_inputs():
         inp["portions"] = 1
     else:
         inp["portions"] = menu_adjust_int("2/7 SERVINGS", "ppl", 4, 1, 20)
-    
+
     n = inp["portions"]
     inp["t_ambient_c"] = menu_adjust_float("3/7 AMBIENT TEMP", "C", 25.0, 15.0, 45.0, step=1.0)
-    
+
     wind_labels = list(main_logic.WIND_TIERS.keys())
     _, wind_choice = menu_select("4/7 WIND", wind_labels)
     inp["wind_label"] = wind_choice
@@ -701,7 +602,7 @@ def collect_inputs():
         inp["m_food"]           = dish.food_mass_per_serving_kg * n
         inp["cp_food"]          = dish.cp_food_kj_kgk
         inp["m_water_initial"]  = dish.added_water_per_serving_kg * n
-        
+
         kinetic_time_s = 0.0
         for stage in dish.stages:
             if stage.stage_type == "kinetic":
@@ -715,13 +616,8 @@ def collect_inputs():
 
     return inp
 
-
 def run_simulation(inp):
-    """
-    Pure silent calculator — runs the 1Hz physics loop as fast as the CPU
-    allows to compute cook time and pellet load. Nothing is shown on LCD
-    during the loop. The loop is a mathematical predictor, not a timer.
-    """
+
     geom = main_logic.compute_vessel_geometry(
         inp["m_water_initial"], inp["utensil_name"], inp["lid_factor"]
     )
@@ -748,7 +644,7 @@ def run_simulation(inp):
     t_safety = main_logic.compute_safety_buffer_s(t_heat_s, inp["k_conv_current"], inp["m_water_initial"])
     t_total_s = t_heat_s + inp["t_kinetic_base_s"] + t_safety
 
-    if t_total_s > 14400:  # > 4 hours
+    if t_total_s > 14400:  
         inp["invalid_combo_msg"] = ("Time > 4 Hours!", "Physically absurd combo")
         return inp
 
@@ -760,8 +656,7 @@ def run_simulation(inp):
 
     # 1Hz PHYSICS LOOP (Actual Simulation) 
     # We use the full loop on the ESP32. It takes ~5s to run but guarantees
-    # exactly the same results as the software version by correctly tracking
-    # evaporation and energy over time.
+
     inp = main_logic.zero_state(inp)
     inp = main_logic.run_1hz_loop(inp)
     inp = main_logic.post_process(inp)
@@ -770,7 +665,6 @@ def run_simulation(inp):
         inp["invalid_combo_msg"] = ("Pellets Out of Bound", "Limit: 50g-1300g")
 
     return inp
-
 
 def run_real_timer(t_total_s, t_boil_s):
     """
@@ -783,9 +677,8 @@ def run_real_timer(t_total_s, t_boil_s):
     start_ms = time.ticks_ms()
     t_total_ms = int(t_total_s * 1000)
 
-    # Pre-compute the real-time boil milestone (proportional)
     boil_ms = int((t_boil_s / t_total_s) * t_total_ms) if t_boil_s and t_total_s > 0 else -1
-    _boil_blip_done = boil_ms <= 0  # skip if no boiling expected
+    _boil_blip_done = boil_ms <= 0  
 
     lcd_show("COOKING...",
              "Starting timer")
@@ -800,16 +693,13 @@ def run_real_timer(t_total_s, t_boil_s):
         remaining_s = max(0.0, t_total_s - elapsed_s)
         remaining_min = remaining_s / 60.0
 
-        # ── Boil milestone blip at proportional real-time moment ──────────────
         if not _boil_blip_done and elapsed_ms >= boil_ms:
             boil_milestone_blip()
             _boil_blip_done = True
 
-        # ── Countdown heartbeat LED in real final 60 seconds ──────────────────
         if remaining_s <= 60.0:
             heartbeat_tick()
 
-        # ── Update LCD once per real second ───────────────────────────────────
         cur_s = int(elapsed_s)
         if cur_s != last_lcd_s:
             last_lcd_s = cur_s
@@ -823,17 +713,15 @@ def run_real_timer(t_total_s, t_boil_s):
                 lcd_write_line(0, "Almost ready!")
             lcd_write_line(1, "[{}]".format(bar[:14]))
 
-        # ── Timer complete ─────────────────────────────────────────────────────
         if elapsed_ms >= t_total_ms:
             break
 
-        time.sleep_ms(200)  # poll every 200ms for smooth heartbeat
-
+        time.sleep_ms(200)  
 
 def display_results(inp):
     # ── Step 1: Calculate Physics Suggestion ─────────────────────────────────
     t_min_suggested = int(inp["t_total_s"] / 60.0)
-    
+
     # ── Step 2: User Inputs ACTUAL Time ──────────────────────────────────────
     lcd_show("~{}min ~{}g".format(t_min_suggested, int(inp["pellets_required_g"])),
              "Press to adjust")
@@ -849,14 +737,13 @@ def display_results(inp):
     pellets_base_g = (user_total_s / 3600.0) * main_logic.FAN_HIGH * 1000.0
     pellets_g = pellets_base_g * margin_factor
 
-    # Hard cap at 1300g per user rules
     if pellets_base_g > 1300:
         pellets_base_g = 1300
     if pellets_g > 1300:
         pellets_g = 1300
 
     # ── Step 4: Show Final Pellets & Start ───────────────────────────────────
-    # Using 'm' instead of 'min' guarantees string length <= 16 for the 16x2 LCD
+
     lcd_show("{:.0f}m {:.0f}-{:.0f}g".format(user_min, pellets_base_g, pellets_g),
              "Press to START")
 
@@ -878,15 +765,13 @@ def display_results(inp):
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
 
-    # Pellet load indicator: 1/2/3 LED flashes
     pellet_load_flash(pellets_g)
-
 
 def main():
     while True:
         try:
             inp = collect_inputs()
-            
+
             pellet_names = get_pellet_names()
             _, pellet_name = menu_select("PELLET TYPE", pellet_names)
             inp["pellet_name"] = pellet_name
@@ -894,25 +779,22 @@ def main():
             inp["pellet"] = pellet
             inp["gcv_kj_kg"] = pellet.conservative_gcv_kj
 
-            # Run all validation checks
             err = validate_inputs(inp)
             if err:
                 err_key, detail = err
                 msg = _FRIENDLY_MSG.get(err_key, ("Invalid setup!", "Try again"))
                 lcd_show(msg[0], msg[1])
                 if err_key in _HARD_ERRORS:
-                    invalid_combo_alarm()  # 3 rapid beeps — must fix before continuing
-                    continue               # restart wizard
+                    invalid_combo_alarm()  
+                    continue               
                 else:
-                    warn_alarm()           # 2 soft beeps — advisory, still runs
-                    # fall through to run simulation anyway
+                    warn_alarm()           
 
             inp = run_simulation(inp)
             display_results(inp)
 
         except Exception as e:
-            # Keep the original restart behavior, but expose the actual cause
-            # on the serial console and LCD instead of hiding it completely.
+
             print("ERROR:", repr(e))
             detail = str(e)
             if not detail:
