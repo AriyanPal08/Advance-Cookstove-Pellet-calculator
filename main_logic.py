@@ -577,6 +577,7 @@ def collect_inputs() :
         t_kinetic_s=inp["t_kinetic_base_s"],
         P_in_kw=P_in_kw,
         A_m2=inp["A_m2"],
+        A_top=inp["A_top"],
         k_conv=k_conv,
         emissivity=inp["emissivity"],
         T_amb=T_amb,
