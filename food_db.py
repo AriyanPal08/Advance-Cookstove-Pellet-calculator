@@ -1,14 +1,9 @@
-# =============================================================================
 
 # cp_source_note / water_source_note stripped to save ESP32 RAM.
 
 #     sources — reworded as cross-references instead of inventing a source.
 
 #     used instead and cited as [8] — see SOURCES.
-
-# SOURCES:
-
-# =============================================================================
 
 CP_WATER_KJ_KGK = 4.184  
 DELTA_T_K = 75.0   
@@ -82,11 +77,6 @@ class DishProfile:
             boiling_s=kinetic_s,
             simmering_s=0,
         )
-
-# ===========================================================================
-
-# ===========================================================================
-
 FOOD_DB = {
 
     "Normal Rice": DishProfile(
