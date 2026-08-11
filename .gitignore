@@ -116,3 +116,7 @@ esp8266_i2c_lcd.py
 
 # PDF Reports
 *.pdf
+
+# Charts / generated images (local only, not tracked in git)
+reports/charts/
+reports/images/
