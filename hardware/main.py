@@ -27,7 +27,7 @@ try:
     lcd = I2cLcd(i2c, LCD_ADDR, LCD_ROWS, LCD_COLS)
 except Exception as e:
 
-    buzzer_pin = machine.PWM(machine.Pin(27), freq=1000, duty=0)
+    buzzer_pin = machine.PWM(machine.Pin(14), freq=1000, duty=0)
     for _ in range(5):
         buzzer_pin.duty(512)
         time.sleep_ms(200)
@@ -36,14 +36,14 @@ except Exception as e:
 
     raise Exception("LCD Init Failed: " + str(e))
 
-enc_clk = machine.Pin(32, machine.Pin.IN, machine.Pin.PULL_UP)
-enc_dt  = machine.Pin(33, machine.Pin.IN, machine.Pin.PULL_UP)
-enc_sw  = machine.Pin(25, machine.Pin.IN, machine.Pin.PULL_UP)
+enc_clk = machine.Pin(25, machine.Pin.IN, machine.Pin.PULL_UP)
+enc_dt  = machine.Pin(26, machine.Pin.IN, machine.Pin.PULL_UP)
+enc_sw  = machine.Pin(27, machine.Pin.IN, machine.Pin.PULL_UP)
 
-led = machine.Pin(26, machine.Pin.OUT)
+led = machine.Pin(12, machine.Pin.OUT)
 led.value(0)
 
-buzzer = machine.PWM(machine.Pin(27), freq=1000, duty=0)
+buzzer = machine.PWM(machine.Pin(14), freq=1000, duty=0)
 
 def _pwm_duty(pwm, value_10bit):
 
