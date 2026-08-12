@@ -467,7 +467,7 @@ def validate_inputs(inp):
         return ("wind_open",
                 "Strong wind, lid off")
 
-    base_mass = utensil.mass_kg
+    base_mass = utensil.empty_mass_kg
     if inp["m_pot"] > 3.0 * base_mass:
         return ("pot_heavy",
                 "Pot mass seems high")
@@ -576,7 +576,7 @@ def collect_inputs():
     inp["is_pc"] = utensil.is_pressure
     inp["emissivity"] = main_logic._emissivity_for_utensil(utensil)
 
-    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.mass_kg, 0.1, 10.0, step=0.05)
+    inp["m_pot"] = menu_adjust_float("6/7 POT MASS", "kg", utensil.empty_mass_kg, 0.1, 10.0, step=0.05)
 
     if utensil.is_pressure:
         inp["lid_factor"] = 0.0
