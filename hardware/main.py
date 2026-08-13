@@ -60,7 +60,7 @@ _enc_pos = 0
 _enc_pressed = False
 _last_enc_time = 0
 _last_btn_time = 0
-DEBOUNCE_MS = 5
+DEBOUNCE_MS = 15
 BTN_DEBOUNCE_MS = 200
 
 def _enc_isr(pin):
@@ -673,6 +673,11 @@ def run_real_timer(t_total_s, t_boil_s):
     t_total_s  : total cook duration in seconds (from physics engine)
     t_boil_s   : simulated boil time (used to fire the boil blip milestone
                   at the proportionally correct real-time moment)
+
+    Returns True if the timer ran to completion normally.
+    Returns False if the user pressed the button mid-timer and confirmed
+    "Yes" on the stop prompt — caller should treat this as a reset back
+    to the main menu, skipping the done/summary screens.
     """
     start_ms = time.ticks_ms()
     t_total_ms = int(t_total_s * 1000)
@@ -713,10 +718,28 @@ def run_real_timer(t_total_s, t_boil_s):
                 lcd_write_line(0, "Almost ready!")
             lcd_write_line(1, "[{}]".format(bar[:14]))
 
+        if was_pressed():
+            pause_start_ms = time.ticks_ms()
+            for _ in range(2):
+                led.value(1)
+                time.sleep_ms(150)
+                led.value(0)
+                time.sleep_ms(150)
+            _, stop_choice = menu_select("Stop cooking?", ["No", "Yes"])
+            if stop_choice == "Yes":
+                return False
+            paused_ms = time.ticks_diff(time.ticks_ms(), pause_start_ms)
+            start_ms = time.ticks_add(start_ms, paused_ms)
+            last_lcd_s = -1
+            lcd_show("COOKING...", "Resuming timer")
+            time.sleep_ms(400)
+
         if elapsed_ms >= t_total_ms:
             break
 
         time.sleep_ms(200)  
+
+    return True
 
 def display_results(inp):
     # ── Step 1: Calculate Physics Suggestion ─────────────────────────────────
@@ -752,7 +775,9 @@ def display_results(inp):
 
     # ── Step 5: Run the REAL hardware countdown timer ────────────────────────
     t_boil_s = inp.get("t_boil_reached_s") or 0
-    run_real_timer(user_total_s, t_boil_s)
+    timer_completed = run_real_timer(user_total_s, t_boil_s)
+    if not timer_completed:
+        return
 
     # ── Step 6: Timer done — fire alarm until acknowledged ───────────────────
     lcd_show("FOOD IS READY!",
@@ -760,7 +785,7 @@ def display_results(inp):
     timer_alarm()
 
     # ── Step 7: Summary screen ───────────────────────────────────────────────
-    lcd_show("{:.0f}min {:.0f}g done".format(user_min, pellets_g),
+    lcd_show("{:.0f}min - Done".format(user_min),
              "Press to restart")
     while not was_pressed(): time.sleep_ms(50)
     tick_feedback()
