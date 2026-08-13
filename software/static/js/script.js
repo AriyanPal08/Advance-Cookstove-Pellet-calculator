@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
         appData: {},
         results: null,
         soundMuted: false,
-        userHasSelectedDish: false
+        userHasSelectedDish: false,
+        dishHistory: []
     };
 
     // 2. DOM ELEMENTS
@@ -360,10 +361,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnSimulate = document.getElementById('btn-simulate');
         if (btnSimulate) btnSimulate.onclick = (e) => { if (e) e.preventDefault(); runSimulation(); };
 
-        // Restart
+        // Restart & Add Another Dish
         const btnRestart = document.getElementById('btn-restart');
         if (btnRestart) btnRestart.onclick = (e) => { if (e) e.preventDefault(); restart(); };
         if (elements.btnRestartTop) elements.btnRestartTop.onclick = (e) => { if (e) e.preventDefault(); restart(); };
+        const btnAddDish = document.getElementById('btn-add-dish');
+        if (btnAddDish) btnAddDish.onclick = (e) => { if (e) e.preventDefault(); addDishAndContinue(); };
 
         // New events
         const btnHeroCalculate = document.getElementById('btn-hero-calculate');
@@ -753,6 +756,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const safetyEl = document.getElementById('receipt-safety');
         if (safetyEl) safetyEl.innerHTML = safetyHtml;
 
+        // Pellet Refill Warning (hopper capacity ~550g)
+        const HOPPER_CAPACITY_G = 550;
+        const refillEl = document.getElementById('receipt-refill-warning');
+        if (refillEl) {
+            if (maxPellets > HOPPER_CAPACITY_G) {
+                const refillAmount = Math.ceil(maxPellets - HOPPER_CAPACITY_G);
+                refillEl.innerHTML = `
+                    <div class="p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-left">
+                        <h4 class="font-bold mb-1">Pellet Refill Required</h4>
+                        <p class="text-sm leading-relaxed">This dish requires more than ${HOPPER_CAPACITY_G} g of pellets. You will need to refill the hopper during cooking. Extra pellets needed: <strong>${refillAmount} g</strong>.</p>
+                    </div>
+                `;
+                refillEl.classList.remove('hidden');
+            } else {
+                refillEl.innerHTML = '';
+                refillEl.classList.add('hidden');
+            }
+        }
+
+        // Multi-Dish Summary
+        renderMultiDishSummary();
+
         // Pressure Cooker Rice Informational Note
         const utensil = state.appData.utensils.find(u => u.name === state.formData.utensil_name);
         const isPressureCooker = utensil ? utensil.is_pressure : (state.formData.utensil_name && state.formData.utensil_name.toLowerCase().includes('pressure'));
@@ -789,8 +814,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 23. restart
+    // 23. renderMultiDishSummary
+    function renderMultiDishSummary() {
+        const summaryEl = document.getElementById('multi-dish-summary');
+        const listEl = document.getElementById('multi-dish-list');
+        const totalEl = document.getElementById('multi-dish-total-value');
+        if (!summaryEl || !listEl || !totalEl) return;
+
+        if (state.dishHistory.length === 0) {
+            summaryEl.classList.add('hidden');
+            return;
+        }
+
+        summaryEl.classList.remove('hidden');
+        let html = '';
+        let grandTotal = 0;
+        state.dishHistory.forEach((d, i) => {
+            grandTotal += d.pellets;
+            html += `<div class="flex justify-between"><span class="text-muted">${i + 1}. ${d.name}</span><span class="font-bold">${d.pellets.toFixed(0)} g</span></div>`;
+        });
+
+        // Add current dish
+        const r = state.results;
+        if (r) {
+            const currentPellets = r.pellets_required_g || 0;
+            grandTotal += currentPellets;
+            html += `<div class="flex justify-between"><span class="text-muted">${state.dishHistory.length + 1}. ${r.dish_name} (current)</span><span class="font-bold">${currentPellets.toFixed(0)} g</span></div>`;
+        }
+
+        listEl.innerHTML = html;
+        if (grandTotal >= 1000) {
+            totalEl.textContent = `${(grandTotal / 1000).toFixed(2)} kg`;
+        } else {
+            totalEl.textContent = `${grandTotal.toFixed(0)} g`;
+        }
+    }
+
+    // 24. addDishAndContinue
+    function addDishAndContinue() {
+        const r = state.results;
+        if (r) {
+            state.dishHistory.push({
+                name: r.dish_name,
+                pellets: r.pellets_required_g || 0
+            });
+        }
+
+        elements.wizardForm.reset();
+        state.userHasSelectedDish = false;
+        const bg = document.getElementById('calculator-bg');
+        if (bg) {
+            bg.classList.remove('active');
+            bg.style.backgroundImage = '';
+        }
+        document.getElementById('calculator-section').classList.remove('dark-mode-active');
+
+        goToStep(state.steps.indexOf('dish'));
+        if (elements.calculatorSection) {
+            smoothScrollTo(elements.calculatorSection, 80);
+        }
+    }
+
+    // 25. restart (full reset)
     function restart() {
+        state.dishHistory = [];
         elements.wizardForm.reset();
         
         // Reset dark mode background
@@ -801,6 +888,10 @@ document.addEventListener('DOMContentLoaded', () => {
             bg.style.backgroundImage = '';
         }
         document.getElementById('calculator-section').classList.remove('dark-mode-active');
+        
+        // Clear multi-dish UI
+        const summaryEl = document.getElementById('multi-dish-summary');
+        if (summaryEl) summaryEl.classList.add('hidden');
         
         goToStep(0);
         if (elements.calculatorSection) {

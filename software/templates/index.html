@@ -394,10 +394,24 @@
         </div>
         <div id="receipt-rice-note" class="mb-8 hidden"></div>
         <div id="receipt-safety" class="mb-8"></div>
+        <div id="receipt-refill-warning" class="mb-8 hidden"></div>
+        <div id="multi-dish-summary" class="mb-8 hidden">
+          <div class="receipt-card">
+            <h3 class="stat-label">Meal Planner — All Dishes</h3>
+            <div id="multi-dish-list" class="space-y-4 mt-4"></div>
+            <div id="multi-dish-total" class="flex justify-between border-t border-border pt-3 mt-3">
+              <span class="text-foreground font-bold">Total Pellets</span>
+              <span class="font-bold text-accent" id="multi-dish-total-value">0 g</span>
+            </div>
+          </div>
+        </div>
         <div class="p-4 bg-gray-50 border border-border rounded-xl text-xs text-muted leading-relaxed mb-8 text-left">
           This web calculator is a demonstration of the same physics engine used in the Tadka Chulha hardware. Results are estimates. Actual cooking performance depends on fuel quality, stove condition, and ambient factors. Always monitor food while cooking.
         </div>
-        <button id="btn-restart" class="btn-primary">New Calculation</button>
+        <div class="flex gap-4 justify-center flex-wrap">
+          <button id="btn-add-dish" class="btn-primary">+ Add Another Dish</button>
+          <button id="btn-restart" class="btn-primary" style="background: var(--muted); color: var(--foreground);">Start Fresh</button>
+        </div>
       </section>
 
     </main>
