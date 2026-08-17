@@ -797,6 +797,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 riceNoteEl.classList.add('hidden');
             }
         }
+
+        // Custom Time Override — populate input with suggested time
+        const customTimeInput = document.getElementById('custom-time-input');
+        const customTimeNote = document.getElementById('custom-time-note');
+        if (customTimeInput) {
+            const suggestedTime = r.t_total_min_user;
+            customTimeInput.value = suggestedTime.toFixed(1);
+
+            // Store original values for proportional recalculation
+            customTimeInput._originalTime = suggestedTime;
+            customTimeInput._originalPelletsRequired = r.pellets_required_g || 0;
+            customTimeInput._originalPelletsTimeBased = r.pellets_time_based_g || r.pellets_required_g || 0;
+
+            // Remove old listener if any (prevent duplicates on re-render)
+            if (customTimeInput._handler) {
+                customTimeInput.removeEventListener('input', customTimeInput._handler);
+            }
+
+            customTimeInput._handler = function() {
+                const newTime = parseFloat(this.value);
+                if (!newTime || newTime <= 0 || isNaN(newTime)) return;
+
+                const origTime = this._originalTime;
+                const ratio = newTime / origTime;
+
+                // Recalculate pellets proportionally
+                const newPelletsRequired = this._originalPelletsRequired * ratio;
+                const newPelletsTimeBased = this._originalPelletsTimeBased * ratio;
+
+                let minP = Math.min(newPelletsRequired, newPelletsTimeBased);
+                let maxP = Math.max(newPelletsRequired, newPelletsTimeBased);
+                if (minP === 0 && maxP > 0) minP = maxP;
+
+                const pelletDisplay = document.getElementById('receipt-pellets');
+                if (pelletDisplay) {
+                    if (maxP >= 1000) {
+                        const minKg = (minP / 1000).toFixed(2);
+                        const maxKg = (maxP / 1000).toFixed(2);
+                        pelletDisplay.textContent = minKg === maxKg ? `${maxKg} kg` : `${minKg} - ${maxKg} kg`;
+                    } else {
+                        const minG = minP.toFixed(0);
+                        const maxG = maxP.toFixed(0);
+                        pelletDisplay.textContent = minG === maxG ? `${maxG} g` : `${minG} - ${maxG} g`;
+                    }
+                }
+
+                // Update refill warning
+                const HOPPER_CAPACITY_G = 550;
+                const refillEl = document.getElementById('receipt-refill-warning');
+                if (refillEl) {
+                    if (maxP > HOPPER_CAPACITY_G) {
+                        const refillAmount = Math.ceil(maxP - HOPPER_CAPACITY_G);
+                        refillEl.innerHTML = `
+                            <div class="p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-left">
+                                <h4 class="font-bold mb-1">Pellet Refill Required</h4>
+                                <p class="text-sm leading-relaxed">This dish requires more than ${HOPPER_CAPACITY_G} g of pellets. You will need to refill the hopper during cooking. Extra pellets needed: <strong>${refillAmount} g</strong>.</p>
+                            </div>
+                        `;
+                        refillEl.classList.remove('hidden');
+                    } else {
+                        refillEl.innerHTML = '';
+                        refillEl.classList.add('hidden');
+                    }
+                }
+
+                // Show/hide the note about custom time
+                if (customTimeNote) {
+                    const diff = ((newTime - origTime) / origTime * 100).toFixed(0);
+                    if (Math.abs(newTime - origTime) > 0.3) {
+                        customTimeNote.textContent = `Custom time: ${diff > 0 ? '+' : ''}${diff}% from suggested ${origTime.toFixed(1)} min`;
+                        customTimeNote.classList.remove('hidden');
+                    } else {
+                        customTimeNote.classList.add('hidden');
+                    }
+                }
+            };
+
+            customTimeInput.addEventListener('input', customTimeInput._handler);
+
+            // Reset note on fresh render
+            if (customTimeNote) customTimeNote.classList.add('hidden');
+        }
     }
 
     // 22. updateProgress

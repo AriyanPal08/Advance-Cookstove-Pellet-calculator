@@ -381,7 +381,21 @@
           <span class="w-2 h-2 bg-accent rounded-full animate-pulse"></span>
           Recommendation Ready
         </div>
-        <h1 class="text-5xl font-bold mb-8" id="receipt-pellets">-- g</h1>
+        <h1 class="text-5xl font-bold mb-4" id="receipt-pellets">-- g</h1>
+        <!-- Custom Time Override -->
+        <div id="custom-time-box" class="mb-8 p-4 rounded-xl" style="background: var(--surface); border: 1px solid var(--border);">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p class="stat-label" style="margin-bottom:2px;">Adjust Cooking Time</p>
+              <p class="text-xs text-muted" id="custom-time-hint">Suggested by simulation. Change to recalculate pellets.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="number" id="custom-time-input" class="input-large" step="0.5" min="1" style="width:100px; padding:8px 12px; font-size:1.1rem; text-align:center;">
+              <span class="text-muted font-bold">min</span>
+            </div>
+          </div>
+          <p id="custom-time-note" class="text-xs mt-2 hidden" style="color: var(--accent); font-weight:600;"></p>
+        </div>
         <div class="grid grid-cols-1 gap-8 mb-12" id="receipt-grid">
           <div class="receipt-card">
             <h3 class="stat-label">Time Estimates</h3>
@@ -480,6 +494,6 @@
   </div>
 </div>
 
-<script src="/static/js/script.js?v=3.9.1"></script>
+<script src="/static/js/script.js?v=3.10.0"></script>
 </body>
 </html>
