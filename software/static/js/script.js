@@ -798,17 +798,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Custom Time Override — populate input with suggested time
+        // Custom Time Override — identical formula to hardware main.py display_results()
         const customTimeInput = document.getElementById('custom-time-input');
         const customTimeNote = document.getElementById('custom-time-note');
         if (customTimeInput) {
             const suggestedTime = r.t_total_min_user;
             customTimeInput.value = suggestedTime.toFixed(1);
 
-            // Store original values for proportional recalculation
-            customTimeInput._originalTime = suggestedTime;
-            customTimeInput._originalPelletsRequired = r.pellets_required_g || 0;
-            customTimeInput._originalPelletsTimeBased = r.pellets_time_based_g || r.pellets_required_g || 0;
+            // Store margin factor from backend (same as hardware's procurement_margin_factor)
+            const FAN_HIGH = 0.78; // kg/hr — hardware constant
+            const marginFactor = r.procurement_margin_factor || 1.08;
 
             // Remove old listener if any (prevent duplicates on re-render)
             if (customTimeInput._handler) {
@@ -816,29 +815,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             customTimeInput._handler = function() {
-                const newTime = parseFloat(this.value);
-                if (!newTime || newTime <= 0 || isNaN(newTime)) return;
+                const userMin = parseFloat(this.value);
+                if (!userMin || userMin <= 0 || isNaN(userMin)) return;
 
-                const origTime = this._originalTime;
-                const ratio = newTime / origTime;
+                // Exact hardware formula: pellets_base_g = (user_total_s / 3600) * FAN_HIGH * 1000
+                const userTotalS = userMin * 60.0;
+                let pelletsBaseG = (userTotalS / 3600.0) * FAN_HIGH * 1000.0;
+                let pelletsG = pelletsBaseG * marginFactor;
 
-                // Recalculate pellets proportionally
-                const newPelletsRequired = this._originalPelletsRequired * ratio;
-                const newPelletsTimeBased = this._originalPelletsTimeBased * ratio;
+                // Hardware caps at 1300g
+                if (pelletsBaseG > 1300) pelletsBaseG = 1300;
+                if (pelletsG > 1300) pelletsG = 1300;
 
-                let minP = Math.min(newPelletsRequired, newPelletsTimeBased);
-                let maxP = Math.max(newPelletsRequired, newPelletsTimeBased);
-                if (minP === 0 && maxP > 0) minP = maxP;
-
+                // Display range (base to with-margin) — same as hardware LCD
                 const pelletDisplay = document.getElementById('receipt-pellets');
                 if (pelletDisplay) {
-                    if (maxP >= 1000) {
-                        const minKg = (minP / 1000).toFixed(2);
-                        const maxKg = (maxP / 1000).toFixed(2);
+                    const minG = Math.round(pelletsBaseG);
+                    const maxG = Math.round(pelletsG);
+                    if (maxG >= 1000) {
+                        const minKg = (minG / 1000).toFixed(2);
+                        const maxKg = (maxG / 1000).toFixed(2);
                         pelletDisplay.textContent = minKg === maxKg ? `${maxKg} kg` : `${minKg} - ${maxKg} kg`;
                     } else {
-                        const minG = minP.toFixed(0);
-                        const maxG = maxP.toFixed(0);
                         pelletDisplay.textContent = minG === maxG ? `${maxG} g` : `${minG} - ${maxG} g`;
                     }
                 }
@@ -847,8 +845,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const HOPPER_CAPACITY_G = 550;
                 const refillEl = document.getElementById('receipt-refill-warning');
                 if (refillEl) {
-                    if (maxP > HOPPER_CAPACITY_G) {
-                        const refillAmount = Math.ceil(maxP - HOPPER_CAPACITY_G);
+                    if (pelletsG > HOPPER_CAPACITY_G) {
+                        const refillAmount = Math.ceil(pelletsG - HOPPER_CAPACITY_G);
                         refillEl.innerHTML = `
                             <div class="p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-left">
                                 <h4 class="font-bold mb-1">Pellet Refill Required</h4>
@@ -862,11 +860,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // Show/hide the note about custom time
+                // Show note if user changed from suggested
                 if (customTimeNote) {
-                    const diff = ((newTime - origTime) / origTime * 100).toFixed(0);
-                    if (Math.abs(newTime - origTime) > 0.3) {
-                        customTimeNote.textContent = `Custom time: ${diff > 0 ? '+' : ''}${diff}% from suggested ${origTime.toFixed(1)} min`;
+                    if (Math.abs(userMin - suggestedTime) > 0.3) {
+                        customTimeNote.textContent = `Suggested: ${suggestedTime.toFixed(1)} min`;
                         customTimeNote.classList.remove('hidden');
                     } else {
                         customTimeNote.classList.add('hidden');
@@ -875,8 +872,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             customTimeInput.addEventListener('input', customTimeInput._handler);
-
-            // Reset note on fresh render
             if (customTimeNote) customTimeNote.classList.add('hidden');
         }
     }

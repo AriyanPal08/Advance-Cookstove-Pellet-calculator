@@ -304,6 +304,7 @@ def simulate():
             "pellets_required_g": inp["pellets_required_g"],
             "pellets_time_based_g": inp.get("pellets_time_based_g", 0),
             "pellets_energy_based_g": inp.get("pellets_energy_based_g", 0),
+            "procurement_margin_factor": inp.get("procurement_margin_factor", 1.08),
             "tick_log": inp["tick_log"]
         }
         
