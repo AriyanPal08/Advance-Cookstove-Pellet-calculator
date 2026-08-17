@@ -257,3 +257,17 @@ While the mathematical simulation successfully predicted the point of sensible h
 **Training Directive for End-Users:**
 1.  Increase the physical water-to-rice volume by 20–30% when cooking on a gasifier stove to accommodate the accelerated phase-change evaporation.
 2.  Alternatively, the operator must manually cut off the fan immediately after the first whistle (approx. 8.5 minutes) and allow the residual thermal mass of the stove and the pressure cooker to finish the kinetic simmering passively.
+
+---
+
+## 7. Key Limitations and Modeling Constraints
+
+The empirical comparison identified several critical limitations binding the accuracy of the current thermodynamic implementation:
+
+1. **Pressure Cooker Thermal Limitations:** The model assumes steady state operation. While the predicted time to the 100°C threshold was accurate, the subsequent post-whistle simmering behavior was not reproduced adequately. The fixed-feed stove could not modulate its fuel delivery downwards to match the low-energy maintenance phase required by the pressure cooker, resulting in burnt food. The model caps heating at 100°C and does not dynamically simulate pressure-dependent boiling-point elevation (which reaches ~120°C inside the cooker).
+2. **Kinetic Stage Assumptions:** The durations of individual kinetic stages (such as starch gelatinization, protein denaturation, or hydration) were specified using first-order engineering estimates from culinary norms rather than direct experimental thermodynamic measurement. They act as provisional, fixed model assumptions rather than dynamically derived thermodynamic constants.
+3. **Lid Evaporation Coefficient:** The application of a fixed 0.15 escape coefficient for covered vessels drastically reduces calculated evaporative loss, but this parameter acts as an engineering approximation rather than an independently measured physical constant. The two water-boiling experiments showed conservative time estimates, indicating that this treatment of evaporation warrants further investigation.
+4. **Transient Biological Reactions (Foaming):** The model assumes steady physical states and does not account for chaotic transient events like spontaneous foaming (observed during the tea and dal tadka experiments), which temporarily spilled onto the burner, reduced visible flame intensity, and artificially lengthened the real-world cooking time.
+5. **Quantity and Serving Assumptions:** The serving sizes and the amount of water added to each dish (e.g., assuming 200 ml of tea per person) were based on standardized template figures. Real-world user variability in the exact quantity of water or ingredients cooked per person will alter the actual thermal mass and deviate from the simulator's standardized templates.
+
+Future work should prioritize repeating the cooking trials across varied environmental conditions, explicitly separating the lid's evaporative containment effect from standard convection, and integrating a feedback loop for pressure cookers to dynamically lower the 0.78 kg/hr mass burn rate during kinetic stages.
