@@ -1386,6 +1386,37 @@ body {
   color: #D1D5DB;
 }
 
+/* Amber/yellow alert boxes in dark mode — refill warning, rice note, pressure cooker note */
+.calculator-section.dark-mode-active .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.25);
+}
+.calculator-section.dark-mode-active .text-amber-900 {
+  color: #FCD34D;
+}
+.calculator-section.dark-mode-active .border-amber-200,
+.calculator-section.dark-mode-active .border-amber-300 {
+  border-color: rgba(252, 211, 77, 0.3);
+}
+
+/* Green/red alert boxes in dark mode */
+.calculator-section.dark-mode-active .bg-green-50 {
+  background-color: rgba(22, 101, 52, 0.25);
+}
+.calculator-section.dark-mode-active .text-green-700 {
+  color: #86EFAC;
+}
+.calculator-section.dark-mode-active .bg-red-50 {
+  background-color: rgba(153, 27, 27, 0.25);
+}
+.calculator-section.dark-mode-active .text-red-700 {
+  color: #FCA5A5;
+}
+
+/* Gray disclaimer box in dark mode */
+.calculator-section.dark-mode-active .bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 /* ============================================
    Hide Google Translate Default UI, Banners & Hover Highlights
    ============================================ */
